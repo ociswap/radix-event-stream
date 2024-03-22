@@ -155,7 +155,7 @@ handler_registry.add_handler(SimpleEventHandler {
 });
 ```
 
-Initialize some type implementing `TransactionStream`. There is a Gateway stream available out of the box.
+Initialize some type implementing `TransactionStream`. There is a Gateway stream available out of the box. Then, start the `TransactionStreamProcessor`. That's it!
 
 ```Rust
 let stream =
