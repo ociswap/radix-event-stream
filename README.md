@@ -4,19 +4,19 @@
 
 ## Features
 
-### Extensible:
+### ✅ Extensible:
 
 Easily identify and process custom events by implementing traits on event handlers.
 
-### Data source agnostic:
+### ✅ Data source agnostic:
 
 Pick from one of the providede data sources (Radix Gateway, file) or easily implement your own.
 
-### Easy to use:
+### ✅ Easy to use:
 
 Simply pick a transaction source, register your handlers and start the stream.
 
-## Performant:
+### ✅ Performant:
 
 Leverages the raw performance of Rust 🦀
 
