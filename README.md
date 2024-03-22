@@ -55,9 +55,9 @@ trait EventHandler {
 }
 ```
 
-We can use this trait to implement event handlers, which can then be registered to a `HandlerRegistry`. The `HandlerRegistry` processes events by trying each event handler on the event. If the event is identified by the handler, it will be processed. If it is not identified, nothing happens.
+We can use this trait to implement event handlers, which can then be registered to a `HandlerRegistry`. The `HandlerRegistry` processes events by trying each event handler on the event. If the event is identified by the handler, it will be processed. If it is not identified, it is ignored.
 
-The `HandlerRegistry` is passed to a type implementing the `TransactionStream` trait, which manages the fetching of transactions from a data source and calling `HandlerRegistry::handle()`. This allows us to implement new data sources.
+The `HandlerRegistry` is passed to a type implementing the `TransactionStream` trait, which manages the fetching of transactions from a data source and calling `HandlerRegistry::handle()`. This allows us to implement new custom data sources.
 
 ## Usage
 
@@ -84,10 +84,12 @@ Implement `EventHandler` for the `SimpleEventHandler`.
 impl EventHandler for SimpleEventHandler {
     fn identify(
         &self,
-        event: &Box<dyn radix_event_stream::streaming::Event>,
+        event: &Box<dyn Event>,
     ) -> Option<Box<dyn Debug>> {
-        // Early return if the name doesn't match
-        if event.name() != InstantiateEvent::event_name() {
+        // Early return if the name doesn't match.
+        // We can use the derived EventName trait
+        // to minimize typo errors.
+        if event.name() != SimpleEvent::event_name() {
             return None;
         }
 
@@ -98,11 +100,7 @@ impl EventHandler for SimpleEventHandler {
             } => package_address,
             _ => return None,
         };
-        if self
-            .pool_store
-            .borrow()
-            .find_by_package_address(package_address)
-            .is_none()
+        if self.package_address != package_address
         {
             return None;
         }
@@ -123,12 +121,53 @@ impl EventHandler for SimpleEventHandler {
             };
         Some(Box::new(decoded))
     }
-
+    fn process(
+        &self,
+        event: &Box<dyn Event>,
+        _: &Box<dyn Transaction>,
+    ) -> Result<(), Box<dyn Error>> {
+        // Decode the event again using scrypto_decode
+        let decoded: InstantiateEvent =
+            match scrypto_decode::<InstantiateEvent>(&event.binary_sbor_data())
+            {
+                Ok(decoded) => decoded,
+                Err(error) => {
+                    log::error!(
+                        "Failed to decode InstantiateEvent: {:#?}",
+                        error
+                    );
+                    return Err("Failed to decode InstantiateEvent".into());
+                }
+            };
+        // Do any kind of processing.
+        Ok(())
+    }
 }
 ```
 
-Create a new `HandlerRegistry` and register
+Create a new `HandlerRegistry` and register the handler.
 
 ```Rust
 let mut handler_registry = HandlerRegistry::new();
+handler_registry.add_handler(SimpleEventHandler {
+    package_address: "package_rdx1p5l6dp3slnh9ycd7gk700czwlck9tujn0zpdnd0efw09n2zdnn0lzx".to_string(),
+});
+```
+
+Initialize some type implementing `TransactionStream`. There is a Gateway stream available out of the box.
+
+```Rust
+let stream =
+    GatewayTransactionStream::new(
+        8000000, // State version to start at
+        100 // Items to fetch per page
+        "https://mainnet.radixdlt.com".to_string(),
+    );
+
+// Start with parameters.
+TransactionStreamProcessor::run_with(
+    stream,
+    handler_registry,
+    Some(std::time::Duration::from_secs(1)), // Interval for logging current state version
+);
 ```
