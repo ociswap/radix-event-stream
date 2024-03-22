@@ -94,7 +94,7 @@ impl TransactionStream for GatewayTransactionStream {
             .map(|item| Box::new(item) as Box<dyn Transaction>)
             .collect();
         if boxed.is_empty() {
-            Err(TransactionStreamError::NoMoreTransactions)
+            Err(TransactionStreamError::CaughtUp)
         } else {
             Ok(boxed)
         }

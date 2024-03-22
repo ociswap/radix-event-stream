@@ -32,7 +32,7 @@ pub trait TransactionStream: Debug {
 
 #[derive(Debug)]
 pub enum TransactionStreamError {
-    NoMoreTransactions,
+    CaughtUp,
     Finished,
     Error(String),
 }
@@ -72,7 +72,7 @@ where
         loop {
             let transactions = match self.transaction_stream.next() {
                 Err(error) => match error {
-                    TransactionStreamError::NoMoreTransactions => {
+                    TransactionStreamError::CaughtUp => {
                         info!("No more transactions, sleeping for 1 second...");
                         std::thread::sleep(std::time::Duration::from_secs(1));
                         continue;
