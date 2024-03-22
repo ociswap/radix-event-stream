@@ -2,6 +2,7 @@ use radix_engine_toolkit::functions::scrypto_sbor::{
     encode_string_representation, StringRepresentation,
 };
 use radix_event_stream::decoder::HandlerRegistry;
+use radix_event_stream::eventstream::EventStreamProcessor;
 use radix_event_stream::models::PoolType;
 use radix_event_stream::poolstore::PoolStore;
 
@@ -13,7 +14,6 @@ use log::{info, warn};
 use radix_client::gateway::models::*;
 use radix_client::GatewayClientBlocking;
 use radix_event_stream::basicv0;
-use radix_event_stream::decoder::DecoderRegistry;
 use radix_event_stream::models::*;
 
 fn main() {
@@ -36,7 +36,7 @@ fn main() {
 
     // Register decoder for each event type
     decoder_registry.add_handler(Box::new(
-        basicv0::events::InstantiateEventDecoder {
+        basicv0::events::InstantiateEventHandler {
             pool_store: Rc::clone(&pool_store_rc),
         },
     ));
@@ -54,81 +54,26 @@ fn main() {
     //     },
     // ));
 
-    let client = GatewayClientBlocking::new(settings.radix_gateway_url);
-
     // Create a new transaction stream
-    let mut stream =
-        client.new_transaction_stream(TransactionStreamRequestBody {
-            from_ledger_state: Some(LedgerStateSelector {
-                state_version: Some(settings.start_from_state_version),
-                ..Default::default()
-            }),
-            limit_per_page: Some(settings.limit_per_page),
-            affected_global_entities_filter: None,
-            opt_ins: Some(TransactionStreamOptIns {
-                receipt_events: true,
-                ..Default::default()
-            }),
-            order: Some(Order::Asc),
-            kind_filter: TransactionKindFilter::User,
-            ..Default::default()
-        });
-    loop {
-        let resp = match stream.next() {
-            Ok(resp) => {
-                if resp.items.is_empty() {
-                    info!("No more transactions, sleeping for 1 second...");
-                    sleep(std::time::Duration::from_secs(1));
-                    continue;
-                }
-                resp
-            }
-            // This case could happen when something goes wrong with the request,
-            // but in practice it happens due to a very specific cursoring issue.
-            // Should fix that in radix-clients later but for now we just retry.
-            Err(err) => {
-                warn!(
-                    "Error while getting transactions, trying again: {:?}",
-                    err
-                );
-                sleep(std::time::Duration::from_secs(1));
-                continue;
-            }
-        };
+    let stream = radix_event_stream::gateway::GatewayEventStream::new(
+        settings.start_from_state_version,
+        settings.limit_per_page,
+        settings.radix_gateway_url,
+    );
 
-        resp.items.iter().for_each(|item| {
-            info!("State version: {}", item.state_version);
-
-            let events = item.receipt.clone().unwrap().events.unwrap();
-
-            events.iter().for_each(|event| {
-                let start_time = std::time::Instant::now();
-                let decoded = match decoder_registry.decode(&event) {
-                    Some(decoded) => {
-                        info!("Decoded: {:?}", decoded);
-                        println!("Decoding took: {:#?}", start_time.elapsed());
-                        decoded
-                    }
-                    None => {
-                        return;
-                    }
-                };
-
-                decoded.update_pool_store(&mut pool_store_rc.borrow_mut());
-            })
-        });
-    }
+    let mut processor = EventStreamProcessor::new(stream, decoder_registry);
+    processor.run();
 }
 
-#[cfg(test)]
-mod tests {
-    use fetcher::basicv0;
+// #[cfg(test)]
+// mod tests {
+//     use fetcher::basicv0;
 
-    use super::*;
-    use fetcher::EventName;
+//     use super::*;
+//     use fetcher::EventName;
 
-    #[test]
-    fn test_event_name_derive() {
-        println!("{}", basicv0::events::InstantiateEvent::event_name()); // Prints "MyEvent"
-    }
-}
+//     #[test]
+//     fn test_event_name_derive() {
+//         println!("{}", basicv0::events::InstantiateEvent::event_name()); // Prints "MyEvent"
+//     }
+// }

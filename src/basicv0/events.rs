@@ -52,7 +52,21 @@ pub struct InstantiateEventHandler {
     pub pool_store: Rc<RefCell<PoolStore>>,
 }
 
-impl EventHandler for InstantiateEventHandler {}
+impl EventHandler for InstantiateEventHandler {
+    fn identify(
+        &self,
+        event: &Box<dyn crate::eventstream::DecodableEvent>,
+    ) -> bool {
+        event.name() == InstantiateEvent::event_name()
+    }
+    fn process(
+        &self,
+        event: &Box<dyn crate::eventstream::DecodableEvent>,
+        transaction: &Box<dyn crate::eventstream::Transaction>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+}
 
 // impl EventDecoder for InstantiateEventDecoder {
 //     fn decode(&self, event: &Event) -> Option<Box<dyn ProcessableEvent>> {

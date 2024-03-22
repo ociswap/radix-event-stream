@@ -1,51 +1,36 @@
 use crate::decoder::HandlerRegistry;
 
 pub trait DecodableEvent {
-    fn name(&self) -> &'static str;
+    fn name(&self) -> &str;
     fn programmatic_json(&self) -> serde_json::Value;
 }
 
 pub trait Transaction {
     fn intent_hash(&self) -> String;
     fn state_version(&self) -> u64;
-    fn events<E: DecodableEvent>(&self) -> Vec<E>;
+    fn events(&self) -> Vec<Box<dyn DecodableEvent>>;
 }
 
-pub trait EventStream{
-    fn next<T, E>(&mut self)
-    where
-        T: Transaction<E>,
-        E: DecodableEvent;
-     -> Option<Vec<T>>;
+pub trait TransactionStream {
+    fn next(&mut self) -> Option<Vec<Box<dyn Transaction>>>;
 }
 
-pub struct EventStreamProcessor<ES, T, E>
+pub struct EventStreamProcessor<ES>
 where
-    ES: EventStream<T, E>,
-    T: Transaction<E>,
-    E: DecodableEvent,
+    ES: TransactionStream,
 {
     pub event_stream: ES,
-    pub decoder_registry: HandlerRegistry<E, T>,
-    _marker: std::marker::PhantomData<T>,
-    _marker2: std::marker::PhantomData<E>,
+    pub decoder_registry: HandlerRegistry,
 }
 
-impl<ES, T, E> EventStreamProcessor<ES, T, E>
+impl<ES> EventStreamProcessor<ES>
 where
-    ES: EventStream<T, E>,
-    T: Transaction<E>,
-    E: DecodableEvent,
+    ES: TransactionStream,
 {
-    pub fn new(
-        event_stream: ES,
-        decoder_registry: HandlerRegistry<E, T>,
-    ) -> Self {
+    pub fn new(event_stream: ES, decoder_registry: HandlerRegistry) -> Self {
         EventStreamProcessor {
             event_stream,
             decoder_registry,
-            _marker: std::marker::PhantomData,
-            _marker2: std::marker::PhantomData,
         }
     }
 

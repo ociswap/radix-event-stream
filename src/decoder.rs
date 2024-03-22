@@ -15,16 +15,20 @@ use std::{error::Error, fmt::Debug};
 /// method. The `ProcessableEvent` trait is implemented by all
 /// event types.
 // Adjusted EventProcessor trait to return Box<dyn ProcessableEvent>
-pub trait EventHandler<E, T>
-where
-    E: DecodableEvent,
-    T: Transaction<E>,
-{
-    fn identify(&self, event: &E) -> bool;
-    fn process(&self, event: &E, transaction: &T)
-        -> Result<(), Box<dyn Error>>;
-    fn handle(&self, event: &E, transaction: &T) -> Result<(), Box<dyn Error>> {
+pub trait EventHandler {
+    fn identify(&self, event: &Box<dyn DecodableEvent>) -> bool;
+    fn process(
+        &self,
+        event: &Box<dyn DecodableEvent>,
+        transaction: &Box<dyn Transaction>,
+    ) -> Result<(), Box<dyn Error>>;
+    fn handle(
+        &self,
+        event: &Box<dyn DecodableEvent>,
+        transaction: &Box<dyn Transaction>,
+    ) -> Result<(), Box<dyn Error>> {
         if self.identify(event) {
+            println!("Handling event {:?}", event.name());
             self.process(event, transaction)
         } else {
             Ok(())
@@ -37,33 +41,25 @@ where
 /// decoders using the `add_decoder` method. Each decoder
 /// is a trait object that implements the `EventDecoder` trait.
 /// Typicaly you would create a new decoder type per event type.
-pub struct HandlerRegistry<E, T>
-where
-    E: DecodableEvent,
-    T: Transaction<E>,
-{
-    pub handlers: Vec<Box<dyn EventHandler<E, T>>>,
+pub struct HandlerRegistry {
+    pub handlers: Vec<Box<dyn EventHandler>>,
 }
 
-impl<E, T> HandlerRegistry<E, T>
-where
-    E: DecodableEvent,
-    T: Transaction<E>,
-{
+impl HandlerRegistry {
     pub fn new() -> Self {
         HandlerRegistry {
             handlers: Vec::new(),
         }
     }
 
-    pub fn add_handler(&mut self, decoder: Box<dyn EventHandler<E, T>>) {
+    pub fn add_handler(&mut self, decoder: Box<dyn EventHandler>) {
         self.handlers.push(decoder);
     }
 
     pub fn handle(
         &self,
-        transaction: &T,
-        event: &E,
+        transaction: &Box<dyn Transaction>,
+        event: &Box<dyn DecodableEvent>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         for handler in &self.handlers {
             handler.handle(event, transaction)?;
