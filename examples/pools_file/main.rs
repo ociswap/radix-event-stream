@@ -27,15 +27,15 @@ fn main() {
     );
 
     // Create a new handler registry
-    let mut decoder_registry = HandlerRegistry::new();
+    let mut handler_registry = HandlerRegistry::new();
 
     // Register handlers for each event type, passing in the application state
     // Applications with different state requirements can create their own handlers
     // and pass in different state.
-    decoder_registry.add_handler(basicv0::events::InstantiateEventHandler {
+    handler_registry.add_handler(basicv0::events::InstantiateEventHandler {
         pool_store: Rc::clone(&pool_store_rc),
     });
-    decoder_registry.add_handler(basicv0::events::ContributionEventHandler {
+    handler_registry.add_handler(basicv0::events::ContributionEventHandler {
         pool_store: Rc::clone(&pool_store_rc),
     });
 
@@ -47,7 +47,7 @@ fn main() {
     info!("Starting stream from json file.");
     TransactionStreamProcessor::run_with(
         stream,
-        decoder_registry.clone(),
+        handler_registry.clone(),
         None,
     );
 
@@ -57,5 +57,5 @@ fn main() {
     );
     // Start with parameters.
     info!("Starting stream from yaml file.");
-    TransactionStreamProcessor::run_with(stream, decoder_registry, None);
+    TransactionStreamProcessor::run_with(stream, handler_registry, None);
 }
