@@ -17,17 +17,22 @@ fn main() {
     env_logger::init();
     info!("Starting fetcher");
 
+    // Create a custom application state
     let pool_store = PoolStore::new(NetworkDefinition::mainnet());
     let pool_store_rc = Rc::new(RefCell::new(pool_store));
 
+    // add the package address of an ociswap pool
     pool_store_rc.borrow_mut().add_package_address(
         "package_rdx1p5l6dp3slnh9ycd7gk700czwlck9tujn0zpdnd0efw09n2zdnn0lzx",
         PoolType::BasicV0,
     );
 
+    // Create a new handler registry
     let mut decoder_registry = HandlerRegistry::new();
 
-    // Register decoder for each event type
+    // Register handlers for each event type, passing in the application state
+    // Applications with different state requirements can create their own handlers
+    // and pass in different state.
     decoder_registry.add_handler(Box::new(
         basicv0::events::InstantiateEventHandler {
             pool_store: Rc::clone(&pool_store_rc),
@@ -47,5 +52,6 @@ fn main() {
             "https://mainnet.radixdlt.com".to_string(),
         );
 
+    // Start with parameters.
     TransactionStreamProcessor::run_with(stream, decoder_registry);
 }
