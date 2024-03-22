@@ -11,7 +11,7 @@ use std::error::Error;
 /// event types.
 // Adjusted EventProcessor trait to return Box<dyn ProcessableEvent>
 pub trait EventHandler: Debug {
-    fn identify(&self, event: &Box<dyn Event>) -> bool;
+    fn identify(&self, event: &Box<dyn Event>) -> Option<Box<dyn Debug>>;
     fn process(
         &self,
         event: &Box<dyn Event>,
@@ -22,13 +22,14 @@ pub trait EventHandler: Debug {
         event: &Box<dyn Event>,
         transaction: &Box<dyn Transaction>,
     ) -> Result<(), Box<dyn Error>> {
-        if self.identify(event) {
-            let time = std::time::Instant::now();
-            let processed = self.process(event, transaction);
-            println!("handle took {:?}", time.elapsed());
-            processed
-        } else {
-            Ok(())
+        let identified = self.identify(event);
+        match identified {
+            Some(identified) => {
+                log::info!("{:#?}", identified);
+                let processed = self.process(event, transaction);
+                processed
+            }
+            None => return Ok(()),
         }
     }
 }

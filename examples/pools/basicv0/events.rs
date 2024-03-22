@@ -1,12 +1,15 @@
 use event_name_derive::EventName;
 use radix_client::gateway::models::EventEmitterIdentifier;
+use radix_engine_common::ScryptoEvent;
 use radix_engine_common::ScryptoSbor;
+use radix_event_stream::encodings::decode_programmatic_json;
 use radix_event_stream::{handler::EventHandler, EventName};
 use scrypto::math::decimal::Decimal;
 use scrypto::prelude::IndexMap;
 use scrypto::types::ComponentAddress;
 use scrypto::types::ResourceAddress;
 use std::cell::RefCell;
+use std::fmt::Debug;
 use std::rc::Rc;
 
 use super::poolstore::PoolStore;
@@ -53,20 +56,35 @@ impl EventHandler for InstantiateEventHandler {
     fn identify(
         &self,
         event: &Box<dyn radix_event_stream::streaming::Event>,
-    ) -> bool {
+    ) -> Option<Box<dyn Debug>> {
         if event.name() != InstantiateEvent::event_name() {
-            return false;
+            return None;
         }
         let package_address = match event.emitter() {
             EventEmitterIdentifier::Function {
                 package_address, ..
             } => package_address,
-            _ => return false,
+            _ => return None,
         };
-        self.pool_store
+        if self
+            .pool_store
             .borrow()
             .find_by_package_address(package_address)
-            .is_some()
+            .is_none()
+        {
+            return None;
+        }
+
+        let decoded = match decode_programmatic_json::<InstantiateEvent>(
+            &event.programmatic_json(),
+        ) {
+            Ok(decoded) => decoded,
+            Err(error) => {
+                log::error!("Failed to decode InstantiateEvent: {:#?}", error);
+                return None;
+            }
+        };
+        Some(Box::new(decoded))
     }
     fn process(
         &self,

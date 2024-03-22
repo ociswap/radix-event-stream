@@ -4,6 +4,7 @@ use radix_event_stream::handler::HandlerRegistry;
 use radix_event_stream::streaming::TransactionStreamProcessor;
 use scrypto::network::NetworkDefinition;
 use std::cell::RefCell;
+use std::env;
 use std::rc::Rc;
 
 use log::info;
@@ -12,6 +13,8 @@ use crate::basicv0::models::PoolType;
 use crate::basicv0::poolstore::PoolStore;
 
 fn main() {
+    env::set_var("RUST_LOG", "info");
+    env_logger::init();
     info!("Starting fetcher");
 
     let pool_store = PoolStore::new(NetworkDefinition::mainnet());

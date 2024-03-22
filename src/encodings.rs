@@ -12,7 +12,6 @@ use scrypto::{
 pub fn decode_programmatic_json<T: ScryptoDecode>(
     data: &serde_json::Value,
 ) -> Result<T, ScryptoSborError> {
-    let start_decode = std::time::Instant::now();
     let string_data = data.to_string();
     let string_representation = match encode_string_representation(
         StringRepresentation::ProgrammaticJson(string_data),
@@ -22,7 +21,6 @@ pub fn decode_programmatic_json<T: ScryptoDecode>(
     };
     let decoded = scrypto_decode::<T>(string_representation.as_slice())
         .map_err(|error| ScryptoSborError::DecodeError(error));
-    println!("decode_programmatic_json took {:?}", start_decode.elapsed());
     decoded
 }
 

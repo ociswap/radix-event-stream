@@ -3,7 +3,6 @@ name = "radix-event-stream"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 radix-engine-toolkit = { git = 'https://github.com/radixdlt/radix-engine-toolkit.git', tag = "v1.0.5" }
@@ -16,21 +15,20 @@ scrypto = { git = "https://github.com/radixdlt/radixdlt-scrypto", rev = "038ddee
 sbor = { git = "https://github.com/radixdlt/radixdlt-scrypto", rev = "038ddee8b0f57aa90e36375c69946c4eb634efeb", features = [
     "serde",
 ] }
-
 radix-client = { git = "https://github.com/ociswap/radix-client", branch = "init-push", features = [
     "gateway",
 ] }
+
 event_name_derive = { path = "./event_name_derive" }
 
-tokio = { version = "1", features = ["full"] }
 serde_json = "1.0.114"
-adorn = "0.4.0"
 config = "0.14.0"
 serde = "1.0.197"
-dotenv = "0.15.0"
-env_logger = "0.11.3"
 log = "0.4.21"
 
-[workspace]
+[dev-dependencies]
+env_logger = "0.11.3"
 
+
+[workspace]
 members = ["event_name_derive"]

@@ -26,6 +26,7 @@ where
 {
     pub transaction_stream: T,
     pub handler_registry: HandlerRegistry,
+    pub last_reported: std::time::Instant,
 }
 
 impl<T> TransactionStreamProcessor<T>
@@ -36,6 +37,7 @@ where
         TransactionStreamProcessor {
             transaction_stream: event_stream,
             handler_registry,
+            last_reported: std::time::Instant::now(),
         }
     }
 
@@ -59,7 +61,10 @@ where
             };
 
             transactions.iter().for_each(|transaction| {
-                info!("State version: {}", transaction.state_version());
+                if self.last_reported.elapsed().as_secs() > 1 {
+                    info!("State version: {}", transaction.state_version());
+                    self.last_reported = std::time::Instant::now();
+                }
                 let events = transaction.events();
                 events.iter().for_each(|event| {
                     self.handler_registry.handle(transaction, event).unwrap();
