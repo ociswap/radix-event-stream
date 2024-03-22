@@ -1,10 +1,6 @@
 use std::{fs::File, path::Path};
 
 use crate::streaming::{Event, Transaction, TransactionStream};
-use radix_client::{
-    gateway::{models::*, stream::TransactionStreamBlocking},
-    GatewayClientBlocking,
-};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -31,7 +27,6 @@ impl Transaction for FileTransaction {
 
 #[derive(Debug)]
 pub struct FileTransactionStream {
-    file: File,
     transactions: Vec<FileTransaction>,
 }
 
@@ -53,7 +48,7 @@ impl FileTransactionStream {
             _ => panic!("Unsupported file type"),
         };
 
-        FileTransactionStream { file, transactions }
+        FileTransactionStream { transactions }
     }
 }
 

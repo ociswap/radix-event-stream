@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Error};
+use std::fmt::Debug;
 
 use crate::handler::HandlerRegistry;
 use log::{info, warn};
@@ -7,7 +7,6 @@ use log::{info, warn};
 /// like a gateway, database, or file.
 pub trait Event: Debug {
     fn name(&self) -> &str;
-    fn programmatic_json(&self) -> &serde_json::Value;
     fn binary_sbor_data(&self) -> Vec<u8>;
     fn emitter(&self)
         -> &radix_client::gateway::models::EventEmitterIdentifier;

@@ -93,14 +93,6 @@ impl HandlerRegistry {
     }
 }
 
-impl Clone for HandlerRegistry {
-    fn clone(&self) -> Self {
-        HandlerRegistry {
-            handlers: self.handlers.iter().map(|h| h.clone_box()).collect(),
-        }
-    }
-}
-
 pub trait CloneBox {
     fn clone_box(&self) -> Box<dyn EventHandler>;
 }
@@ -111,5 +103,13 @@ where
 {
     fn clone_box(&self) -> Box<dyn EventHandler> {
         Box::new(self.clone())
+    }
+}
+
+impl Clone for HandlerRegistry {
+    fn clone(&self) -> Self {
+        HandlerRegistry {
+            handlers: self.handlers.iter().map(|h| h.clone_box()).collect(),
+        }
     }
 }

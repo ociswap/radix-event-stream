@@ -1,7 +1,6 @@
 use event_name_derive::EventName;
 use radix_client::gateway::models::EventEmitterIdentifier;
 use radix_engine_common::ScryptoSbor;
-use radix_event_stream::encodings::decode_programmatic_json;
 use radix_event_stream::encodings::encode_bech32;
 use radix_event_stream::{handler::EventHandler, EventName};
 
