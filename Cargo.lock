@@ -357,8 +357,10 @@ checksum = "8eaf5903dcbc0a39312feb77df2ff4c76387d591b9fc7b04a238dcf8bb62639a"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
+ "js-sys",
  "num-traits",
  "serde",
+ "wasm-bindgen",
  "windows-targets 0.52.4",
 ]
 
@@ -1580,8 +1582,9 @@ checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 [[package]]
 name = "radix-client"
 version = "0.1.0"
-source = "git+https://github.com/ociswap/radix-client?branch=init-push#c89c4542accbf6062326383e9cda2e39bdc4c93b"
+source = "git+https://github.com/ociswap/radix-client?branch=init-push#3c1e4275ea80629a52636916d10a87ae55d264b5"
 dependencies = [
+ "chrono",
  "duplicate",
  "maybe-async",
  "reqwest",
@@ -1764,6 +1767,7 @@ dependencies = [
 name = "radix-event-stream"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "config",
  "env_logger",
  "event_name_derive",

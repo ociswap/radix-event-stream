@@ -26,6 +26,7 @@ config = "0.14.0"
 serde = "1.0.197"
 log = "0.4.21"
 serde_yaml = "0.9.33"
+chrono = "0.4.35"
 
 [dev-dependencies]
 env_logger = "0.11.3"

@@ -1,6 +1,7 @@
 ---
 - state_version: 1
   intent_hash: "12345"
+  unix_timestamp_nanos: 1
   events:
     - name: InstantiateEvent
       emitter:
@@ -32,6 +33,7 @@
             value: component_rdx1cz89w3ecvh9jvdd892vycs44rr042lteg75zgdydq9csn5d87snvdw
 - state_version: 2
   intent_hash: "54321"
+  unix_timestamp_nanos: 2
   events:
     - name: InstantiateEvent
       emitter:

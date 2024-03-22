@@ -7,6 +7,7 @@ use serde::Deserialize;
 pub struct FileTransaction {
     pub intent_hash: String,
     pub state_version: u64,
+    pub unix_timestamp_nanos: u64,
     pub events: Vec<radix_client::gateway::models::Event>,
 }
 
@@ -16,6 +17,11 @@ impl Transaction for FileTransaction {
     }
     fn state_version(&self) -> u64 {
         self.state_version
+    }
+    fn confirmed_at(&self) -> Option<chrono::DateTime<chrono::prelude::Utc>> {
+        Some(chrono::DateTime::from_timestamp_nanos(
+            self.unix_timestamp_nanos as i64,
+        ))
     }
     fn events(&self) -> Vec<Box<dyn Event>> {
         self.events

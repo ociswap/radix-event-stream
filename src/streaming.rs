@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use crate::handler::HandlerRegistry;
+use chrono::Utc;
 use log::{info, warn};
 
 /// A trait that abstracts an event coming from any source,
@@ -17,6 +18,7 @@ pub trait Event: Debug {
 pub trait Transaction: Debug {
     fn intent_hash(&self) -> String;
     fn state_version(&self) -> u64;
+    fn confirmed_at(&self) -> Option<chrono::DateTime<Utc>>;
     fn events(&self) -> Vec<Box<dyn Event>>;
 }
 

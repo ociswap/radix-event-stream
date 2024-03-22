@@ -4,6 +4,7 @@ use crate::{
         Event, Transaction, TransactionStream, TransactionStreamError,
     },
 };
+use chrono::Utc;
 use radix_client::{
     gateway::{models::*, stream::TransactionStreamBlocking},
     GatewayClientBlocking,
@@ -40,6 +41,9 @@ impl Transaction for CommittedTransactionInfo {
     }
     fn intent_hash(&self) -> String {
         self.intent_hash.clone().unwrap()
+    }
+    fn confirmed_at(&self) -> Option<chrono::DateTime<Utc>> {
+        self.confirmed_at
     }
     fn state_version(&self) -> u64 {
         self.state_version

@@ -2,6 +2,7 @@
     {
         "state_version": 1,
         "intent_hash": "12345",
+        "unix_timestamp_nanos": 1,
         "events": [
             {
                 "name": "InstantiateEvent",
@@ -51,6 +52,7 @@
     {
         "state_version": 2,
         "intent_hash": "54321",
+        "unix_timestamp_nanos": 2,
         "events": [
             {
                 "name": "InstantiateEvent",
