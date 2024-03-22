@@ -91,6 +91,7 @@ impl EventHandler for SimpleEventHandler {
             return None;
         }
 
+        // Check whether the emitter of this event is our package
         let package_address = match event.emitter() {
             EventEmitterIdentifier::Function {
                 package_address, ..
@@ -106,6 +107,8 @@ impl EventHandler for SimpleEventHandler {
             return None;
         }
 
+        // Decode and return the decoded struct.
+        // This allows the framework to log it.
         let decoded =
             match scrypto_decode::<InstantiateEvent>(&event.binary_sbor_data())
             {
@@ -118,7 +121,6 @@ impl EventHandler for SimpleEventHandler {
                     return None;
                 }
             };
-
         Some(Box::new(decoded))
     }
 
