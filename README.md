@@ -169,6 +169,7 @@ let stream =
 TransactionStreamProcessor::run_with(
     stream,
     handler_registry,
-    Some(std::time::Duration::from_secs(1)), // Interval for logging current state version
+    // Interval for logging current state version
+    Some(std::time::Duration::from_secs(1)),
 );
 ```
