@@ -148,9 +148,10 @@ impl EventHandler for SimpleEventHandler {
 Create a new `HandlerRegistry` and register the handler.
 
 ```Rust
+let package_address = "package_rdx1p5l6dp3slnh9ycd7gk700czwlck9tujn0zpdnd0efw09n2zdnn0lzx".to_string()
 let mut handler_registry = HandlerRegistry::new();
 handler_registry.add_handler(SimpleEventHandler {
-    package_address: "package_rdx1p5l6dp3slnh9ycd7gk700czwlck9tujn0zpdnd0efw09n2zdnn0lzx".to_string(),
+    package_address,
 });
 ```
 
