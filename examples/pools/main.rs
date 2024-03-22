@@ -33,6 +33,11 @@ fn main() {
             pool_store: Rc::clone(&pool_store_rc),
         },
     ));
+    decoder_registry.add_handler(Box::new(
+        basicv0::events::ContributionEventHandler {
+            pool_store: Rc::clone(&pool_store_rc),
+        },
+    ));
 
     // Create a new transaction stream
     let stream =
