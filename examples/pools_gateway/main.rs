@@ -15,7 +15,6 @@ use crate::basicv0::poolstore::PoolStore;
 fn main() {
     env::set_var("RUST_LOG", "info");
     env_logger::init();
-    info!("Starting fetcher");
 
     // Create a custom application state
     let pool_store = PoolStore::new(NetworkDefinition::mainnet());
