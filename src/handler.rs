@@ -77,8 +77,8 @@ impl HandlerRegistry {
         }
     }
 
-    pub fn add_handler(&mut self, decoder: Box<dyn EventHandler>) {
-        self.handlers.push(decoder);
+    pub fn add_handler<T: EventHandler + 'static>(&mut self, handler: T) {
+        self.handlers.push(Box::new(handler));
     }
 
     #[allow(clippy::borrowed_box)]

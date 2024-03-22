@@ -32,16 +32,12 @@ fn main() {
     // Register handlers for each event type, passing in the application state
     // Applications with different state requirements can create their own handlers
     // and pass in different state.
-    decoder_registry.add_handler(Box::new(
-        basicv0::events::InstantiateEventHandler {
-            pool_store: Rc::clone(&pool_store_rc),
-        },
-    ));
-    decoder_registry.add_handler(Box::new(
-        basicv0::events::ContributionEventHandler {
-            pool_store: Rc::clone(&pool_store_rc),
-        },
-    ));
+    decoder_registry.add_handler(basicv0::events::InstantiateEventHandler {
+        pool_store: Rc::clone(&pool_store_rc),
+    });
+    decoder_registry.add_handler(basicv0::events::ContributionEventHandler {
+        pool_store: Rc::clone(&pool_store_rc),
+    });
 
     // Create a new transaction stream with a json file source
     let stream = radix_event_stream::sources::file::FileTransactionStream::new(
