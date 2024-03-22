@@ -1,11 +1,6 @@
-use radix_client::gateway::models::Event;
-use radix_engine_toolkit::functions::scrypto_sbor::{
-    encode_string_representation, ScryptoSborError, StringRepresentation,
-};
+use crate::streaming::{Event, Transaction};
 use scrypto::prelude::*;
-
-use crate::eventstream::{DecodableEvent, Transaction};
-use std::{error::Error, fmt::Debug};
+use std::error::Error;
 
 /// A trait that defines a decoder for for an event type.
 /// To be able to decode an event, create a struct `MyEventDecoder`
@@ -15,21 +10,23 @@ use std::{error::Error, fmt::Debug};
 /// method. The `ProcessableEvent` trait is implemented by all
 /// event types.
 // Adjusted EventProcessor trait to return Box<dyn ProcessableEvent>
-pub trait EventHandler {
-    fn identify(&self, event: &Box<dyn DecodableEvent>) -> bool;
+pub trait EventHandler: Debug {
+    fn identify(&self, event: &Box<dyn Event>) -> bool;
     fn process(
         &self,
-        event: &Box<dyn DecodableEvent>,
+        event: &Box<dyn Event>,
         transaction: &Box<dyn Transaction>,
     ) -> Result<(), Box<dyn Error>>;
     fn handle(
         &self,
-        event: &Box<dyn DecodableEvent>,
+        event: &Box<dyn Event>,
         transaction: &Box<dyn Transaction>,
     ) -> Result<(), Box<dyn Error>> {
         if self.identify(event) {
-            println!("Handling event {:?}", event.name());
-            self.process(event, transaction)
+            let time = std::time::Instant::now();
+            let processed = self.process(event, transaction);
+            println!("handle took {:?}", time.elapsed());
+            processed
         } else {
             Ok(())
         }
@@ -41,6 +38,7 @@ pub trait EventHandler {
 /// decoders using the `add_decoder` method. Each decoder
 /// is a trait object that implements the `EventDecoder` trait.
 /// Typicaly you would create a new decoder type per event type.
+#[derive(Default, Debug)]
 pub struct HandlerRegistry {
     pub handlers: Vec<Box<dyn EventHandler>>,
 }
@@ -59,37 +57,11 @@ impl HandlerRegistry {
     pub fn handle(
         &self,
         transaction: &Box<dyn Transaction>,
-        event: &Box<dyn DecodableEvent>,
+        event: &Box<dyn Event>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         for handler in &self.handlers {
             handler.handle(event, transaction)?;
         }
         Ok(())
     }
-}
-
-/// Decode a serde json value containing programmatic json
-/// into a type that implements the `ScryptoDecode` trait.
-pub fn decode_programmatic_json<T: ScryptoDecode>(
-    data: &serde_json::Value,
-) -> Result<T, ScryptoSborError> {
-    let start_decode = std::time::Instant::now();
-    let string_data = data.to_string();
-    let string_representation = match encode_string_representation(
-        StringRepresentation::ProgrammaticJson(string_data),
-    ) {
-        Ok(string_representation) => string_representation,
-        Err(error) => return Err(error),
-    };
-    let decoded = scrypto_decode::<T>(string_representation.as_slice())
-        .map_err(|error| ScryptoSborError::DecodeError(error));
-    println!("decode_programmatic_json took {:?}", start_decode.elapsed());
-    decoded
-}
-
-pub fn encode_bech32(
-    data: &[u8],
-    network: &NetworkDefinition,
-) -> Option<String> {
-    AddressBech32Encoder::new(network).encode(&data).ok()
 }

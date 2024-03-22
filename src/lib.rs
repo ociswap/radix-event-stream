@@ -1,10 +1,7 @@
-pub mod basicv0;
-pub mod decoder;
-pub mod eventstream;
-pub mod gateway;
-pub mod models;
-pub mod poolstore;
-pub mod settings;
+pub mod encodings;
+pub mod handler;
+pub mod sources;
+pub mod streaming;
 
 pub trait EventName {
     fn event_name() -> &'static str;

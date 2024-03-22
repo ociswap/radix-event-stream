@@ -1,8 +1,9 @@
 use scrypto::network::NetworkDefinition;
 
-use crate::models::{ComponentAddress, PoolAddress, PoolType};
 use std::collections::HashMap;
 use std::fmt::Debug;
+
+use super::models::{ComponentAddress, PoolAddress, PoolType};
 
 #[derive(Debug)]
 pub struct PoolStore {
@@ -83,9 +84,6 @@ impl PoolStore {
         &self,
         package_address: &str,
     ) -> Option<PoolType> {
-        match self.package_addresses.get(package_address) {
-            Some(pool_type) => Some(*pool_type),
-            None => None,
-        }
+        self.package_addresses.get(package_address).copied()
     }
 }

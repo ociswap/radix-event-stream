@@ -1,21 +1,25 @@
-use crate::eventstream::{DecodableEvent, Transaction, TransactionStream};
+use crate::streaming::{Event, Transaction, TransactionStream};
 use radix_client::{
     gateway::{models::*, stream::TransactionStreamBlocking},
     GatewayClientBlocking,
 };
 
-impl DecodableEvent for Event {
+impl Event for radix_client::gateway::models::Event {
     fn name(&self) -> &str {
         &self.name
     }
-
-    fn programmatic_json(&self) -> serde_json::Value {
-        self.data.clone()
+    fn programmatic_json(&self) -> &serde_json::Value {
+        &self.data
+    }
+    fn emitter(
+        &self,
+    ) -> &radix_client::gateway::models::EventEmitterIdentifier {
+        &self.emitter
     }
 }
 
 impl Transaction for CommittedTransactionInfo {
-    fn events(&self) -> Vec<Box<dyn DecodableEvent>> {
+    fn events(&self) -> Vec<Box<dyn Event>> {
         let events = match &self.receipt {
             Some(receipt) => match &receipt.events {
                 Some(events) => events,
@@ -26,7 +30,7 @@ impl Transaction for CommittedTransactionInfo {
         };
         events
             .iter()
-            .map(|event| Box::new(event.clone()) as Box<dyn DecodableEvent>)
+            .map(|event| Box::new(event.clone()) as Box<dyn Event>)
             .collect()
     }
     fn intent_hash(&self) -> String {
@@ -37,10 +41,11 @@ impl Transaction for CommittedTransactionInfo {
     }
 }
 
-pub struct GatewayEventStream {
+#[derive(Debug)]
+pub struct GatewayTransactionStream {
     stream: TransactionStreamBlocking,
 }
-impl GatewayEventStream {
+impl GatewayTransactionStream {
     pub fn new(
         from_state_version: u64,
         limit_per_page: u32,
@@ -63,11 +68,11 @@ impl GatewayEventStream {
                 kind_filter: TransactionKindFilter::User,
                 ..Default::default()
             });
-        GatewayEventStream { stream }
+        GatewayTransactionStream { stream }
     }
 }
 
-impl TransactionStream for GatewayEventStream {
+impl TransactionStream for GatewayTransactionStream {
     fn next(&mut self) -> Option<Vec<Box<dyn Transaction>>> {
         let response = self.stream.next().ok()?;
         Some(

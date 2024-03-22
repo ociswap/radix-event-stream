@@ -1,19 +1,15 @@
-use super::pool::*;
-use crate::decoder::decode_programmatic_json;
-use crate::decoder::encode_bech32;
-use crate::decoder::EventHandler;
-// use crate::decoder::EventDecoder;
-use crate::{poolstore::PoolStore, EventName};
 use event_name_derive::EventName;
-use log::error;
-use radix_client::gateway::models::{Event, EventEmitterIdentifier};
+use radix_client::gateway::models::EventEmitterIdentifier;
 use radix_engine_common::ScryptoSbor;
+use radix_event_stream::{handler::EventHandler, EventName};
 use scrypto::math::decimal::Decimal;
 use scrypto::prelude::IndexMap;
 use scrypto::types::ComponentAddress;
 use scrypto::types::ResourceAddress;
 use std::cell::RefCell;
 use std::rc::Rc;
+
+use super::poolstore::PoolStore;
 
 #[derive(ScryptoSbor, Debug, EventName)]
 pub struct InstantiateEvent {
@@ -48,6 +44,7 @@ pub struct InstantiateEvent {
 //     }
 // }
 
+#[derive(Debug)]
 pub struct InstantiateEventHandler {
     pub pool_store: Rc<RefCell<PoolStore>>,
 }
@@ -55,14 +52,26 @@ pub struct InstantiateEventHandler {
 impl EventHandler for InstantiateEventHandler {
     fn identify(
         &self,
-        event: &Box<dyn crate::eventstream::DecodableEvent>,
+        event: &Box<dyn radix_event_stream::streaming::Event>,
     ) -> bool {
-        event.name() == InstantiateEvent::event_name()
+        if event.name() != InstantiateEvent::event_name() {
+            return false;
+        }
+        let package_address = match event.emitter() {
+            EventEmitterIdentifier::Function {
+                package_address, ..
+            } => package_address,
+            _ => return false,
+        };
+        self.pool_store
+            .borrow()
+            .find_by_package_address(package_address)
+            .is_some()
     }
     fn process(
         &self,
-        event: &Box<dyn crate::eventstream::DecodableEvent>,
-        transaction: &Box<dyn crate::eventstream::Transaction>,
+        _: &Box<dyn radix_event_stream::streaming::Event>,
+        _: &Box<dyn radix_event_stream::streaming::Transaction>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }
