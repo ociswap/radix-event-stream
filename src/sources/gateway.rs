@@ -1,4 +1,9 @@
-use crate::streaming::{Event, Transaction, TransactionStream};
+use crate::{
+    encodings::programmatic_json_to_bytes,
+    streaming::{
+        Event, Transaction, TransactionStream, TransactionStreamError,
+    },
+};
 use radix_client::{
     gateway::{models::*, stream::TransactionStreamBlocking},
     GatewayClientBlocking,
@@ -15,6 +20,9 @@ impl Event for radix_client::gateway::models::Event {
         &self,
     ) -> &radix_client::gateway::models::EventEmitterIdentifier {
         &self.emitter
+    }
+    fn binary_sbor_data(&self) -> Vec<u8> {
+        programmatic_json_to_bytes(&self.data).unwrap()
     }
 }
 
@@ -73,14 +81,21 @@ impl GatewayTransactionStream {
 }
 
 impl TransactionStream for GatewayTransactionStream {
-    fn next(&mut self) -> Option<Vec<Box<dyn Transaction>>> {
-        let response = self.stream.next().ok()?;
-        Some(
-            response
-                .items
-                .into_iter()
-                .map(|item| Box::new(item) as Box<dyn Transaction>)
-                .collect(),
-        )
+    fn next(
+        &mut self,
+    ) -> Result<Vec<Box<dyn Transaction>>, TransactionStreamError> {
+        let response = self.stream.next().map_err(|err| {
+            TransactionStreamError::Error(format!("{:?}", err))
+        })?;
+        let boxed: Vec<Box<dyn Transaction>> = response
+            .items
+            .into_iter()
+            .map(|item| Box::new(item) as Box<dyn Transaction>)
+            .collect();
+        if boxed.is_empty() {
+            Err(TransactionStreamError::NoMoreTransactions)
+        } else {
+            Ok(boxed)
+        }
     }
 }

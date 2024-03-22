@@ -5,6 +5,7 @@ use radix_event_stream::encodings::decode_programmatic_json;
 use radix_event_stream::encodings::encode_bech32;
 use radix_event_stream::{handler::EventHandler, EventName};
 
+use scrypto::data::scrypto::scrypto_decode;
 use scrypto::math::decimal::Decimal;
 use scrypto::network::NetworkDefinition;
 use scrypto::prelude::IndexMap;
@@ -27,7 +28,7 @@ pub struct InstantiateEvent {
     pool_address: ComponentAddress,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct InstantiateEventHandler {
     pub pool_store: Rc<RefCell<PoolStore>>,
 }
@@ -55,15 +56,19 @@ impl EventHandler for InstantiateEventHandler {
             return None;
         }
 
-        let decoded = match decode_programmatic_json::<InstantiateEvent>(
-            &event.programmatic_json(),
-        ) {
-            Ok(decoded) => decoded,
-            Err(error) => {
-                log::error!("Failed to decode InstantiateEvent: {:#?}", error);
-                return None;
-            }
-        };
+        let decoded =
+            match scrypto_decode::<InstantiateEvent>(&event.binary_sbor_data())
+            {
+                Ok(decoded) => decoded,
+                Err(error) => {
+                    log::error!(
+                        "Failed to decode InstantiateEvent: {:#?}",
+                        error
+                    );
+                    return None;
+                }
+            };
+
         Some(Box::new(decoded))
     }
     fn process(
@@ -71,15 +76,18 @@ impl EventHandler for InstantiateEventHandler {
         event: &Box<dyn radix_event_stream::streaming::Event>,
         _: &Box<dyn radix_event_stream::streaming::Transaction>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let decoded = match decode_programmatic_json::<InstantiateEvent>(
-            &event.programmatic_json(),
-        ) {
-            Ok(decoded) => decoded,
-            Err(error) => {
-                log::error!("Failed to decode InstantiateEvent: {:#?}", error);
-                return Err("Failed to decode InstantiateEvent".into());
-            }
-        };
+        let decoded =
+            match scrypto_decode::<InstantiateEvent>(&event.binary_sbor_data())
+            {
+                Ok(decoded) => decoded,
+                Err(error) => {
+                    log::error!(
+                        "Failed to decode InstantiateEvent: {:#?}",
+                        error
+                    );
+                    return Err("Failed to decode InstantiateEvent".into());
+                }
+            };
         let component_address = encode_bech32(
             decoded.pool_address.as_node_id().as_bytes(),
             &NetworkDefinition::mainnet(),
@@ -105,7 +113,7 @@ pub struct ContributionEvent {
     pub pool_units_minted: Decimal,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ContributionEventHandler {
     pub pool_store: Rc<RefCell<PoolStore>>,
 }
@@ -130,8 +138,8 @@ impl EventHandler for ContributionEventHandler {
             .find_by_native_address(native_address)
             .is_some()
         {
-            let decoded = match decode_programmatic_json::<ContributionEvent>(
-                &event.programmatic_json(),
+            let decoded = match scrypto_decode::<ContributionEvent>(
+                &event.binary_sbor_data(),
             ) {
                 Ok(decoded) => decoded,
                 Err(error) => {

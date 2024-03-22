@@ -1,0 +1,32 @@
+---
+- state_version: 1
+  intent_hash: "12345"
+  events:
+    - name: InstantiateEvent
+      emitter:
+        type: Function
+        package_address: package_rdx1p5l6dp3slnh9ycd7gk700czwlck9tujn0zpdnd0efw09n2zdnn0lzx
+        blueprint_name: BasicPool
+      data:
+        kind: Tuple
+        type_name: InstantiateEvent
+        fields:
+          - kind: Reference
+            type_name: ResourceAddress
+            field_name: x_address
+            value: resource_rdx1t52pvtk5wfhltchwh3rkzls2x0r98fw9cjhpyrf3vsykhkuwrf7jg8
+          - kind: Reference
+            type_name: ResourceAddress
+            field_name: y_address
+            value: resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd
+          - kind: Decimal
+            field_name: input_fee_rate
+            value: "0.003"
+          - kind: Reference
+            type_name: ComponentAddress
+            field_name: liquidity_pool_address
+            value: pool_rdx1ckyg8aujf09uh8qlz6asst75g5w6pl6vu8nl6qrhskawcndyk6585y
+          - kind: Reference
+            type_name: ComponentAddress
+            field_name: pool_address
+            value: component_rdx1cz89w3ecvh9jvdd892vycs44rr042lteg75zgdydq9csn5d87snvdw

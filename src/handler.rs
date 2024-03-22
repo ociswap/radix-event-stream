@@ -11,7 +11,7 @@ use std::error::Error;
 /// implement both the identification step and the processing
 /// step. Leave the handle method as is, as it will call
 /// identify and process for you.
-pub trait EventHandler: Debug {
+pub trait EventHandler: Debug + CloneBox {
     /// Implement this by checking if the event is the type
     /// of event you are interested in. For example, do this
     /// by checking the event name. Note that anyone can create
@@ -90,5 +90,26 @@ impl HandlerRegistry {
             handler.handle(event, transaction)?;
         }
         Ok(())
+    }
+}
+
+impl Clone for HandlerRegistry {
+    fn clone(&self) -> Self {
+        HandlerRegistry {
+            handlers: self.handlers.iter().map(|h| h.clone_box()).collect(),
+        }
+    }
+}
+
+pub trait CloneBox {
+    fn clone_box(&self) -> Box<dyn EventHandler>;
+}
+
+impl<T> CloneBox for T
+where
+    T: 'static + EventHandler + Clone,
+{
+    fn clone_box(&self) -> Box<dyn EventHandler> {
+        Box::new(self.clone())
     }
 }

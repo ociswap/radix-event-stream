@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Error};
 
 use crate::handler::HandlerRegistry;
 use log::{info, warn};
@@ -8,6 +8,7 @@ use log::{info, warn};
 pub trait Event: Debug {
     fn name(&self) -> &str;
     fn programmatic_json(&self) -> &serde_json::Value;
+    fn binary_sbor_data(&self) -> Vec<u8>;
     fn emitter(&self)
         -> &radix_client::gateway::models::EventEmitterIdentifier;
 }
@@ -23,7 +24,16 @@ pub trait Transaction: Debug {
 /// A trait that abstracts a stream of transactions coming
 /// from any source, like a gateway, database, or file.
 pub trait TransactionStream: Debug {
-    fn next(&mut self) -> Option<Vec<Box<dyn Transaction>>>;
+    fn next(
+        &mut self,
+    ) -> Result<Vec<Box<dyn Transaction>>, TransactionStreamError>;
+}
+
+#[derive(Debug)]
+pub enum TransactionStreamError {
+    NoMoreTransactions,
+    Finished,
+    Error(String),
 }
 
 /// Uses a `TransactionStream` to process transactions and
@@ -36,45 +46,64 @@ where
 {
     pub transaction_stream: T,
     pub handler_registry: HandlerRegistry,
-    pub last_reported: std::time::Instant,
+    pub time_last_state_version_reported: Option<std::time::Instant>,
 }
 
 impl<T> TransactionStreamProcessor<T>
 where
     T: TransactionStream,
 {
-    pub fn new(event_stream: T, handler_registry: HandlerRegistry) -> Self {
+    pub fn new(
+        transaction_stream: T,
+        handler_registry: HandlerRegistry,
+    ) -> Self {
         TransactionStreamProcessor {
-            transaction_stream: event_stream,
+            transaction_stream,
             handler_registry,
-            last_reported: std::time::Instant::now(),
+            time_last_state_version_reported: None,
         }
     }
 
     pub fn run(&mut self) {
         loop {
             let transactions = match self.transaction_stream.next() {
-                Some(transactions) => {
-                    if transactions.is_empty() {
+                Err(error) => match error {
+                    TransactionStreamError::NoMoreTransactions => {
                         info!("No more transactions, sleeping for 1 second...");
                         std::thread::sleep(std::time::Duration::from_secs(1));
                         continue;
                     }
-                    transactions
-                }
-                // If we get None, we should try again,
-                None => {
-                    warn!("Error while getting transactions, trying again in 1 second...");
-                    std::thread::sleep(std::time::Duration::from_secs(1));
-                    continue;
-                }
+                    TransactionStreamError::Finished => {
+                        info!("Finished processing transactions.");
+                        break;
+                    }
+                    TransactionStreamError::Error(error) => {
+                        warn!("Error while getting transactions: {}", error);
+                        std::thread::sleep(std::time::Duration::from_secs(1));
+                        continue;
+                    }
+                },
+                Ok(transactions) => transactions,
             };
 
             transactions.iter().for_each(|transaction| {
-                if self.last_reported.elapsed().as_secs() > 1 {
-                    info!("State version: {}", transaction.state_version());
-                    self.last_reported = std::time::Instant::now();
-                }
+                match self.time_last_state_version_reported {
+                    Some(last_reported) => {
+                        if last_reported.elapsed().as_secs() > 1 {
+                            info!(
+                                "State version: {}",
+                                transaction.state_version()
+                            );
+                            self.time_last_state_version_reported =
+                                Some(std::time::Instant::now());
+                        }
+                    }
+                    None => {
+                        info!("State version: {}", transaction.state_version());
+                        self.time_last_state_version_reported =
+                            Some(std::time::Instant::now());
+                    }
+                };
                 let events = transaction.events();
                 events.iter().for_each(|event| {
                     self.handler_registry.handle(transaction, event).unwrap();
@@ -83,9 +112,11 @@ where
         }
     }
 
-    pub fn run_with(event_stream: T, handler_registry: HandlerRegistry) {
-        let mut processor =
-            TransactionStreamProcessor::new(event_stream, handler_registry);
+    pub fn run_with(transaction_stream: T, handler_registry: HandlerRegistry) {
+        let mut processor = TransactionStreamProcessor::new(
+            transaction_stream,
+            handler_registry,
+        );
         processor.run();
     }
 }

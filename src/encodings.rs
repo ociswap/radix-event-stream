@@ -12,16 +12,20 @@ use scrypto::{
 pub fn decode_programmatic_json<T: ScryptoDecode>(
     data: &serde_json::Value,
 ) -> Result<T, ScryptoSborError> {
-    let string_data = data.to_string();
-    let string_representation = match encode_string_representation(
-        StringRepresentation::ProgrammaticJson(string_data),
-    ) {
-        Ok(string_representation) => string_representation,
-        Err(error) => return Err(error),
-    };
-    let decoded = scrypto_decode::<T>(string_representation.as_slice())
+    let bytes = programmatic_json_to_bytes(data)?;
+    let decoded = scrypto_decode::<T>(&bytes)
         .map_err(|error| ScryptoSborError::DecodeError(error));
     decoded
+}
+
+pub fn programmatic_json_to_bytes(
+    data: &serde_json::Value,
+) -> Result<Vec<u8>, ScryptoSborError> {
+    let string_data = data.to_string();
+    let string_representation = encode_string_representation(
+        StringRepresentation::ProgrammaticJson(string_data),
+    )?;
+    Ok(string_representation.to_vec())
 }
 
 pub fn encode_bech32(
