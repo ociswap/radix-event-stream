@@ -15,7 +15,6 @@ use crate::basicv0::poolstore::PoolStore;
 fn main() {
     env::set_var("RUST_LOG", "info");
     env_logger::init();
-    info!("Starting fetcher");
 
     // Create a custom application state
     let pool_store = PoolStore::new(NetworkDefinition::mainnet());
@@ -49,6 +48,7 @@ fn main() {
         "examples/pools_file/transactions.json".to_string(),
     );
     // Start with parameters.
+    info!("Starting stream from json file.");
     TransactionStreamProcessor::run_with(stream, decoder_registry.clone());
 
     // Create a new transaction stream with a yaml file source
@@ -56,5 +56,6 @@ fn main() {
         "examples/pools_file/transactions.yaml".to_string(),
     );
     // Start with parameters.
+    info!("Starting stream from yaml file.");
     TransactionStreamProcessor::run_with(stream, decoder_registry);
 }
