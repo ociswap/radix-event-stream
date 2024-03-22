@@ -13,9 +13,6 @@ impl Event for radix_client::gateway::models::Event {
     fn name(&self) -> &str {
         &self.name
     }
-    fn programmatic_json(&self) -> &serde_json::Value {
-        &self.data
-    }
     fn emitter(
         &self,
     ) -> &radix_client::gateway::models::EventEmitterIdentifier {
