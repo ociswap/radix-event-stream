@@ -1768,6 +1768,7 @@ name = "radix-event-stream"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "colored",
  "config",
  "env_logger",
  "event_name_derive",

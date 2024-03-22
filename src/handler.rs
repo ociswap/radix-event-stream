@@ -1,4 +1,5 @@
 use crate::streaming::{Event, Transaction};
+use colored::Colorize;
 use scrypto::prelude::*;
 use std::error::Error;
 
@@ -48,7 +49,7 @@ pub trait EventHandler: Debug + CloneBox {
         let identified = self.identify(event);
         match identified {
             Some(identified) => {
-                log::info!("{:#?}", identified);
+                log::info!("{}", format!("\nFound {:#?}", identified).green());
                 self.process(event, transaction)
             }
             None => Ok(()),
