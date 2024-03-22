@@ -10,7 +10,7 @@ Easily identify and process custom events by implementing traits on event handle
 
 ### ✅ Data source agnostic:
 
-Pick from one of the providede data sources (Radix Gateway, file) or easily implement your own.
+Pick from one of the provided data sources (Radix Gateway, file) or easily implement your own.
 
 ### ✅ Easy to use:
 
