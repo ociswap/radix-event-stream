@@ -9,13 +9,13 @@ use scrypto::{
 
 /// Decode a serde json value containing programmatic json
 /// into a type that implements the `ScryptoDecode` trait.
+#[allow(clippy::redundant_closure)]
 pub fn decode_programmatic_json<T: ScryptoDecode>(
     data: &serde_json::Value,
 ) -> Result<T, ScryptoSborError> {
     let bytes = programmatic_json_to_bytes(data)?;
-    let decoded = scrypto_decode::<T>(&bytes)
-        .map_err(|error| ScryptoSborError::DecodeError(error));
-    decoded
+    scrypto_decode::<T>(&bytes)
+        .map_err(|error| ScryptoSborError::DecodeError(error))
 }
 
 pub fn programmatic_json_to_bytes(
@@ -32,5 +32,5 @@ pub fn encode_bech32(
     data: &[u8],
     network: &NetworkDefinition,
 ) -> Option<String> {
-    AddressBech32Encoder::new(network).encode(&data).ok()
+    AddressBech32Encoder::new(network).encode(data).ok()
 }

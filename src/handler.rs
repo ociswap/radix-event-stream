@@ -11,6 +11,7 @@ use std::error::Error;
 /// implement both the identification step and the processing
 /// step. Leave the handle method as is, as it will call
 /// identify and process for you.
+#[allow(clippy::borrowed_box)]
 pub trait EventHandler: Debug + CloneBox {
     /// Implement this by checking if the event is the type
     /// of event you are interested in. For example, do this
@@ -48,10 +49,9 @@ pub trait EventHandler: Debug + CloneBox {
         match identified {
             Some(identified) => {
                 log::info!("{:#?}", identified);
-                let processed = self.process(event, transaction);
-                processed
+                self.process(event, transaction)
             }
-            None => return Ok(()),
+            None => Ok(()),
         }
     }
 }
@@ -81,6 +81,7 @@ impl HandlerRegistry {
         self.handlers.push(decoder);
     }
 
+    #[allow(clippy::borrowed_box)]
     pub fn handle(
         &self,
         transaction: &Box<dyn Transaction>,
