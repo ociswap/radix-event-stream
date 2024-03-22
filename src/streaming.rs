@@ -45,7 +45,8 @@ where
 {
     pub transaction_stream: T,
     pub handler_registry: HandlerRegistry,
-    pub time_last_state_version_reported: Option<std::time::Instant>,
+    pub state_version_report_interval: Option<std::time::Duration>,
+    pub time_last_state_version_reported: std::time::Instant,
 }
 
 impl<T> TransactionStreamProcessor<T>
@@ -55,11 +56,13 @@ where
     pub fn new(
         transaction_stream: T,
         handler_registry: HandlerRegistry,
+        state_version_report_interval: Option<std::time::Duration>,
     ) -> Self {
         TransactionStreamProcessor {
             transaction_stream,
             handler_registry,
-            time_last_state_version_reported: None,
+            state_version_report_interval,
+            time_last_state_version_reported: std::time::Instant::now(),
         }
     }
 
@@ -86,21 +89,21 @@ where
             };
 
             transactions.iter().for_each(|transaction| {
-                match self.time_last_state_version_reported {
-                    Some(last_reported) => {
-                        if last_reported.elapsed().as_secs() > 1 {
+                match self.state_version_report_interval {
+                    Some(interval) => {
+                        if self.time_last_state_version_reported.elapsed()
+                            > interval
+                        {
                             info!(
                                 "State version: {}",
                                 transaction.state_version()
                             );
                             self.time_last_state_version_reported =
-                                Some(std::time::Instant::now());
+                                std::time::Instant::now();
                         }
                     }
                     None => {
                         info!("State version: {}", transaction.state_version());
-                        self.time_last_state_version_reported =
-                            Some(std::time::Instant::now());
                     }
                 };
                 let events = transaction.events();
@@ -111,10 +114,15 @@ where
         }
     }
 
-    pub fn run_with(transaction_stream: T, handler_registry: HandlerRegistry) {
+    pub fn run_with(
+        transaction_stream: T,
+        handler_registry: HandlerRegistry,
+        state_version_report_interval: Option<std::time::Duration>,
+    ) {
         let mut processor = TransactionStreamProcessor::new(
             transaction_stream,
             handler_registry,
+            state_version_report_interval,
         );
         processor.run();
     }

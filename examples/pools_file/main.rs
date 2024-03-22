@@ -49,7 +49,11 @@ fn main() {
     );
     // Start with parameters.
     info!("Starting stream from json file.");
-    TransactionStreamProcessor::run_with(stream, decoder_registry.clone());
+    TransactionStreamProcessor::run_with(
+        stream,
+        decoder_registry.clone(),
+        None,
+    );
 
     // Create a new transaction stream with a yaml file source
     let stream = radix_event_stream::sources::file::FileTransactionStream::new(
@@ -57,5 +61,5 @@ fn main() {
     );
     // Start with parameters.
     info!("Starting stream from yaml file.");
-    TransactionStreamProcessor::run_with(stream, decoder_registry);
+    TransactionStreamProcessor::run_with(stream, decoder_registry, None);
 }

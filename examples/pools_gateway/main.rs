@@ -53,5 +53,9 @@ fn main() {
         );
 
     // Start with parameters.
-    TransactionStreamProcessor::run_with(stream, decoder_registry);
+    TransactionStreamProcessor::run_with(
+        stream,
+        decoder_registry.to_owned(),
+        Some(std::time::Duration::from_secs(1)),
+    );
 }
