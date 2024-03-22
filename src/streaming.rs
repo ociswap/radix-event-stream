@@ -3,6 +3,8 @@ use std::fmt::Debug;
 use crate::handler::HandlerRegistry;
 use log::{info, warn};
 
+/// A trait that abstracts an event coming from any source,
+/// like a gateway, database, or file.
 pub trait Event: Debug {
     fn name(&self) -> &str;
     fn programmatic_json(&self) -> &serde_json::Value;
@@ -10,16 +12,24 @@ pub trait Event: Debug {
         -> &radix_client::gateway::models::EventEmitterIdentifier;
 }
 
+/// A trait that abstracts a transaction coming from any source,
+/// like a gateway, database, or file.
 pub trait Transaction: Debug {
     fn intent_hash(&self) -> String;
     fn state_version(&self) -> u64;
     fn events(&self) -> Vec<Box<dyn Event>>;
 }
 
+/// A trait that abstracts a stream of transactions coming
+/// from any source, like a gateway, database, or file.
 pub trait TransactionStream: Debug {
     fn next(&mut self) -> Option<Vec<Box<dyn Transaction>>>;
 }
 
+/// Uses a `TransactionStream` to process transactions and
+/// events using a `HandlerRegistry`. Register event handlers
+/// using the `HandlerRegistry` and then call `run` to start
+/// processing transactions.
 pub struct TransactionStreamProcessor<T>
 where
     T: TransactionStream,
