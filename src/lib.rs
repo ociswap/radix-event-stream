@@ -1,4 +1,5 @@
 pub mod encodings;
+pub mod generate_enum;
 pub mod handler;
 pub mod sources;
 pub mod streaming;

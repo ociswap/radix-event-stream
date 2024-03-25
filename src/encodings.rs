@@ -1,6 +1,8 @@
 use radix_engine_toolkit::functions::scrypto_sbor::{
-    encode_string_representation, ScryptoSborError, StringRepresentation,
+    encode, encode_string_representation, ScryptoSborError,
+    StringRepresentation,
 };
+
 use scrypto::{
     address::AddressBech32Encoder,
     data::scrypto::{scrypto_decode, ScryptoDecode},

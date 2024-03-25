@@ -1,55 +1,57 @@
 use crate::{
     encodings::programmatic_json_to_bytes,
     streaming::{
-        Event, Transaction, TransactionStream, TransactionStreamError,
+        Event, EventEmitter, Transaction, TransactionStream,
+        TransactionStreamError,
     },
 };
-use chrono::Utc;
+
 use radix_client::{
     gateway::{models::*, stream::TransactionStreamBlocking},
     GatewayClientBlocking,
 };
 
-impl Event for radix_client::gateway::models::Event {
-    fn name(&self) -> &str {
-        &self.name
-    }
-    fn emitter(
-        &self,
-    ) -> &radix_client::gateway::models::EventEmitterIdentifier {
-        &self.emitter
-    }
-    fn binary_sbor_data(&self) -> Vec<u8> {
-        programmatic_json_to_bytes(&self.data).unwrap()
-    }
-}
-
-impl Transaction for CommittedTransactionInfo {
-    fn events(&self) -> Vec<Box<dyn Event>> {
-        let events = match &self.receipt {
-            Some(receipt) => match &receipt.events {
-                Some(events) => events,
-                None => return vec![],
+impl Into<Event> for radix_client::gateway::models::Event {
+    fn into(self) -> Event {
+        let emitter = match self.emitter {
+            EventEmitterIdentifier::Method { entity, .. } => {
+                EventEmitter::Method {
+                    entity_address: entity.entity_address,
+                }
+            }
+            EventEmitterIdentifier::Function {
+                package_address,
+                blueprint_name,
+            } => EventEmitter::Function {
+                package_address,
+                blueprint_name,
             },
-
-            None => return vec![],
         };
-        events
-            .iter()
-            .map(|event| Box::new(event.clone()) as Box<dyn Event>)
-            .collect()
-    }
-    fn intent_hash(&self) -> String {
-        self.intent_hash.clone().unwrap()
-    }
-    fn confirmed_at(&self) -> Option<chrono::DateTime<Utc>> {
-        self.confirmed_at
-    }
-    fn state_version(&self) -> u64 {
-        self.state_version
+        Event {
+            name: self.name,
+            emitter: emitter,
+            binary_sbor_data: programmatic_json_to_bytes(&self.data).unwrap(),
+        }
     }
 }
 
+impl Into<Transaction> for CommittedTransactionInfo {
+    fn into(self) -> Transaction {
+        Transaction {
+            intent_hash: self.intent_hash.unwrap(),
+            state_version: self.state_version,
+            confirmed_at: self.confirmed_at,
+            events: self
+                .receipt
+                .unwrap()
+                .events
+                .unwrap()
+                .into_iter()
+                .map(|event| event.into())
+                .collect(),
+        }
+    }
+}
 #[derive(Debug)]
 pub struct GatewayTransactionStream {
     stream: TransactionStreamBlocking,
@@ -82,17 +84,12 @@ impl GatewayTransactionStream {
 }
 
 impl TransactionStream for GatewayTransactionStream {
-    fn next(
-        &mut self,
-    ) -> Result<Vec<Box<dyn Transaction>>, TransactionStreamError> {
+    fn next(&mut self) -> Result<Vec<Transaction>, TransactionStreamError> {
         let response = self.stream.next().map_err(|err| {
             TransactionStreamError::Error(format!("{:?}", err))
         })?;
-        let boxed: Vec<Box<dyn Transaction>> = response
-            .items
-            .into_iter()
-            .map(|item| Box::new(item) as Box<dyn Transaction>)
-            .collect();
+        let boxed: Vec<Transaction> =
+            response.items.into_iter().map(|item| item.into()).collect();
         if boxed.is_empty() {
             Err(TransactionStreamError::CaughtUp)
         } else {

@@ -1,61 +1,6 @@
 use crate::streaming::{Event, Transaction};
-use colored::Colorize;
 use scrypto::prelude::*;
-use std::error::Error;
-
-/// A trait that defines a handler for for an event type.
-/// To be able to handle an event, there are two
-/// main things we must do. We must first identify the event,
-/// making sure it is the type of event we are interested in,
-/// and making sure it is relevant. Then, we may want to process
-/// the event or do some kind of task. Use this Trait to
-/// implement both the identification step and the processing
-/// step. Leave the handle method as is, as it will call
-/// identify and process for you.
-#[allow(clippy::borrowed_box)]
-pub trait EventHandler: Debug + CloneBox {
-    /// Implement this by checking if the event is the type
-    /// of event you are interested in. For example, do this
-    /// by checking the event name. Note that anyone can create
-    /// an event with any name, so you should also check the
-    /// emitter of the event to make sure it is legitimate.
-    /// For this, you can store application state in the struct
-    /// that implements this trait and access it here.
-    /// If the event is the type you are interested in, decode
-    /// the event using the `decode_programmatic_json` function
-    /// and return it Boxed.
-    fn identify(&self, event: &Box<dyn Event>) -> Option<Box<dyn Debug>>;
-    /// Implement this by processing the event. This is where
-    /// you would do any kind of task you want to do with the
-    /// event. For example, you could update a database, or
-    /// send a message to a queue. You can also call other
-    /// services or APIs. You can also do nothing,
-    /// to ignore the event. Note again that you can access
-    /// application state by storing it in the struct that
-    /// implements this trait and passing that into the handler
-    /// when you register it.
-    fn process(
-        &self,
-        event: &Box<dyn Event>,
-        transaction: &Box<dyn Transaction>,
-    ) -> Result<(), Box<dyn Error>>;
-    /// This method will call identify and process for you.
-    /// Most often you will not need to override this method.
-    fn handle(
-        &self,
-        event: &Box<dyn Event>,
-        transaction: &Box<dyn Transaction>,
-    ) -> Result<(), Box<dyn Error>> {
-        let identified = self.identify(event);
-        match identified {
-            Some(identified) => {
-                log::info!("{}", format!("\nFound {:#?}", identified).green());
-                self.process(event, transaction)
-            }
-            None => Ok(()),
-        }
-    }
-}
+use std::collections::HashMap;
 
 /// A registry of handlers that can be used to decode events
 /// coming from the Radix Gateway. You can register your own
@@ -66,52 +11,56 @@ pub trait EventHandler: Debug + CloneBox {
 /// handler in the registry. If correctly set up,
 /// only up to one handler should actually be able to identify
 /// and process an event.
-#[derive(Default, Debug)]
-pub struct HandlerRegistry {
-    pub handlers: Vec<Box<dyn EventHandler>>,
+#[allow(non_camel_case_types)]
+#[derive(Default, Debug, Clone)]
+pub struct HandlerRegistry<EVENT_HANDLER, STATE>
+where
+    EVENT_HANDLER: EventHandler<EVENT_HANDLER, STATE>,
+    STATE: Clone,
+{
+    pub handlers: HashMap<String, Vec<EVENT_HANDLER>>,
+    _marker: std::marker::PhantomData<STATE>,
 }
 
-impl HandlerRegistry {
+#[allow(non_camel_case_types)]
+impl<EVENT_HANDLER, STATE> HandlerRegistry<EVENT_HANDLER, STATE>
+where
+    EVENT_HANDLER: EventHandler<EVENT_HANDLER, STATE>,
+    STATE: Clone,
+{
     pub fn new() -> Self {
         HandlerRegistry {
-            handlers: Vec::new(),
+            handlers: HashMap::new(),
+            _marker: std::marker::PhantomData,
         }
     }
 
-    pub fn add_handler<T: EventHandler + 'static>(&mut self, handler: T) {
-        self.handlers.push(Box::new(handler));
-    }
-
-    #[allow(clippy::borrowed_box)]
-    pub fn handle(
-        &self,
-        transaction: &Box<dyn Transaction>,
-        event: &Box<dyn Event>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        for handler in &self.handlers {
-            handler.handle(event, transaction)?;
-        }
-        Ok(())
+    pub fn add_handler(&mut self, emitter: String, handler: EVENT_HANDLER) {
+        self.handlers
+            .entry(emitter)
+            .or_insert_with(Vec::new)
+            .push(handler);
     }
 }
 
-pub trait CloneBox {
-    fn clone_box(&self) -> Box<dyn EventHandler>;
-}
-
-impl<T> CloneBox for T
+#[allow(non_camel_case_types)]
+pub trait EventHandler<EVENT_HANDLER, STATE>: Clone + Debug
 where
-    T: 'static + EventHandler + Clone,
+    EVENT_HANDLER: EventHandler<EVENT_HANDLER, STATE>,
+    STATE: Clone,
 {
-    fn clone_box(&self) -> Box<dyn EventHandler> {
-        Box::new(self.clone())
-    }
+    fn handle(
+        &self,
+        app_state: &mut STATE,
+        event: &Event,
+        transaction: &Transaction,
+        handler_registry: &mut HandlerRegistry<EVENT_HANDLER, STATE>,
+    );
+
+    // Add this method to the trait
+    fn match_variant(&self, name: &str) -> bool;
 }
 
-impl Clone for HandlerRegistry {
-    fn clone(&self) -> Self {
-        HandlerRegistry {
-            handlers: self.handlers.iter().map(|h| h.clone_box()).collect(),
-        }
-    }
+pub trait TransactionHandler {
+    fn handle(&self, transaction: Transaction);
 }

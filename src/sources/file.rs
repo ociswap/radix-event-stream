@@ -7,27 +7,20 @@ use serde::Deserialize;
 pub struct FileTransaction {
     pub intent_hash: String,
     pub state_version: u64,
-    pub unix_timestamp_nanos: u64,
+    pub unix_timestamp_nanos: i64,
     pub events: Vec<radix_client::gateway::models::Event>,
 }
 
-impl Transaction for FileTransaction {
-    fn intent_hash(&self) -> String {
-        self.intent_hash.clone()
-    }
-    fn state_version(&self) -> u64 {
-        self.state_version
-    }
-    fn confirmed_at(&self) -> Option<chrono::DateTime<chrono::prelude::Utc>> {
-        Some(chrono::DateTime::from_timestamp_nanos(
-            self.unix_timestamp_nanos as i64,
-        ))
-    }
-    fn events(&self) -> Vec<Box<dyn Event>> {
-        self.events
-            .iter()
-            .map(|event| Box::new(event.clone()) as Box<dyn Event>)
-            .collect()
+impl Into<Transaction> for FileTransaction {
+    fn into(self) -> Transaction {
+        Transaction {
+            intent_hash: self.intent_hash,
+            state_version: self.state_version,
+            confirmed_at: Some(chrono::DateTime::from_timestamp_nanos(
+                self.unix_timestamp_nanos,
+            )),
+            events: self.events.into_iter().map(|event| event.into()).collect(),
+        }
     }
 }
 
@@ -61,19 +54,17 @@ impl FileTransactionStream {
 impl TransactionStream for FileTransactionStream {
     fn next(
         &mut self,
-    ) -> Result<
-        Vec<Box<dyn Transaction>>,
-        crate::streaming::TransactionStreamError,
-    > {
+    ) -> Result<Vec<Transaction>, crate::streaming::TransactionStreamError>
+    {
         if self.transactions.is_empty() {
             return Err(crate::streaming::TransactionStreamError::Finished);
         }
 
         let transactions = self.transactions.clone();
         self.transactions.clear();
-        let transactions: Vec<Box<dyn Transaction>> = transactions
+        let transactions: Vec<Transaction> = transactions
             .into_iter()
-            .map(|transaction| Box::new(transaction) as Box<dyn Transaction>)
+            .map(|transaction| transaction.into())
             .collect();
         Ok(transactions)
     }

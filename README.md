@@ -35,9 +35,9 @@ pub struct InstantiateEvent {
 }
 ```
 
-These events are recorded inside of transactions and stored on the Radix ledger. This makes it possible to track the state of an application by reading events as they happen, and processing them in some specified way. That's what this library aims to achieve.
+These events are recorded inside of transactions in-sequence and stored on the Radix ledger. This makes it possible to track the state of an application by reading events as they happen, and processing them in some specified way. That's what this library aims to achieve.
 
-Events on Radix have a name, but this name is not unique to the entire network. Consider the case where we have an application which emits events of type `InstantiateEvent`. Another user could create a component which emits events with the exact same name and schema, messing with our data.
+Events on Radix have a name, but this name is not unique to the entire network. Consider the case where we have an application which emits events of type `InstantiateEvent`. If we were naive about processing events, another user could create a component which emits events with the exact same name and schema, messing with our data.
 
 That's why we must first `identify` the event, possibly using some application-specific state like package addresses or component addresses. Only when we are sure that the event is ours and we are interested in processing it, should we `process` the event. This can be something like updating a database or notifying other services or users.
 
@@ -84,7 +84,7 @@ Implement `EventHandler` for the `SimpleEventHandler`.
 impl EventHandler for SimpleEventHandler {
     fn identify(
         &self,
-        event: &Box<dyn Event>,
+        event: &Event,
     ) -> Option<Box<dyn Debug>> {
         // Early return if the name doesn't match.
         // We can use the derived EventName trait
@@ -123,8 +123,8 @@ impl EventHandler for SimpleEventHandler {
     }
     fn process(
         &self,
-        event: &Box<dyn Event>,
-        _: &Box<dyn Transaction>,
+        event: &Event,
+        _: &Transaction,
     ) -> Result<(), Box<dyn Error>> {
         // Decode the event again using scrypto_decode
         let decoded: InstantiateEvent =
