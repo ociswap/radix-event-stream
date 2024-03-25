@@ -1,5 +1,7 @@
 use radix_engine_common::ScryptoSbor;
-use radix_event_stream::{encodings::encode_bech32, models::EventHandlerInput};
+use radix_event_stream::{
+    encodings::encode_bech32, models::EventHandlerContext,
+};
 use sbor::rust::collections::IndexMap;
 use scrypto::{
     math::Decimal,
@@ -24,7 +26,7 @@ use event_handler::event_handler;
 
 #[event_handler]
 pub fn handle_instantiate_event(
-    input: EventHandlerInput<AppState>,
+    input: EventHandlerContext<AppState>,
     event: InstantiateEvent,
 ) {
     let component_address = encode_bech32(
@@ -59,7 +61,10 @@ pub struct SwapEvent {
 }
 
 #[event_handler]
-pub fn handle_swap_event(input: EventHandlerInput<AppState>, event: SwapEvent) {
+pub fn handle_swap_event(
+    input: EventHandlerContext<AppState>,
+    event: SwapEvent,
+) {
 }
 
 #[derive(ScryptoSbor, Debug)]
@@ -70,7 +75,7 @@ pub struct ContributionEvent {
 
 #[event_handler]
 pub fn handle_contribution_event(
-    input: EventHandlerInput<AppState>,
+    input: EventHandlerContext<AppState>,
     event: ContributionEvent,
 ) {
 }
@@ -83,7 +88,7 @@ pub struct RedemptionEvent {
 
 #[event_handler]
 pub fn handle_redemption_event(
-    input: EventHandlerInput<AppState>,
+    input: EventHandlerContext<AppState>,
     event: RedemptionEvent,
 ) {
 }

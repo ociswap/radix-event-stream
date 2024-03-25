@@ -87,7 +87,7 @@ where
                 info!(
                     "{}",
                     format!(
-                        "NEW TRANSACTION - {:#?} - {}",
+                        "HANDLING TRANSACTION - {:#?} - {}",
                         transaction.state_version,
                         transaction.confirmed_at
                             .expect("When handling a transaction it should always have a timestamp")
@@ -187,7 +187,7 @@ where
                 info!(
                     "{}",
                     format!(
-                        "NEW TRANSACTION - {:#?} - {}",
+                        "HANDLING TRANSACTION - {:#?} - {}",
                         transaction.state_version,
                         transaction.confirmed_at
                             .expect("When handling a transaction it should always have a timestamp")

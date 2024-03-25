@@ -6,7 +6,7 @@
 
 ### ✅ Extensible:
 
-Easily identify and process custom events by implementing traits on event handlers.
+Easily identify and process custom events by implementing event handlers.
 
 ### ✅ Data source agnostic:
 
@@ -35,11 +35,9 @@ pub struct InstantiateEvent {
 }
 ```
 
-These events are recorded inside of transactions in-sequence and stored on the Radix ledger. This makes it possible to track the state of an application by reading events as they happen, and processing them in some specified way. That's what this library aims to achieve.
+These events are recorded inside of transactions in-sequence and stored on the Radix ledger. This allows developers to track the state of an application by reading events as they happen, and processing them in some specified way. That's what this library aims to achieve.
 
-Events on Radix have a name, but this name is not unique to the entire network. Consider the case where we have an application which emits events of type `InstantiateEvent`. If we were naive about processing events, another user could create a component which emits events with the exact same name and schema, messing with our data.
-
-That's why we must first `identify` the event, possibly using some application-specific state like package addresses or component addresses. Only when we are sure that the event is ours and we are interested in processing it, should we `process` the event. This can be something like updating a database or notifying other services or users.
+Events on Radix have an **emitter**. This is the on-ledger entity which emitted the event.
 
 ## How it works
 

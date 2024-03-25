@@ -66,7 +66,7 @@ impl Transaction {
             );
 
             event_handler.handle(
-                EventHandlerInput {
+                EventHandlerContext {
                     app_state,
                     transaction: self,
                     handler_registry,
@@ -78,7 +78,7 @@ impl Transaction {
 }
 
 #[allow(non_camel_case_types)]
-pub struct EventHandlerInput<'a, STATE>
+pub struct EventHandlerContext<'a, STATE>
 where
     STATE: Clone,
 {

@@ -18,14 +18,14 @@ pub fn event_handler(_attr: TokenStream, item: TokenStream) -> TokenStream {
             // One approach is to convert `ty` to a string and check if it contains "EventHandlerInput".
             // Note: This is a simplistic approach and might not work in all cases, especially with complex type paths or generics.
             let ty_string = quote!(#ty).to_string();
-            ty_string.starts_with("EventHandlerInput")
+            ty_string.starts_with("EventHandlerContext")
         } else {
             false
         };
 
     if !is_first_arg_event_handler_input {
         panic!(
-            "Expected the first argument to be of type EventHandlerInput<T>"
+            "Expected the first argument to be of type EventHandlerContext<T>"
         );
     }
 
