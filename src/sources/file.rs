@@ -1,7 +1,11 @@
 use std::{fs::File, path::Path};
 
-use crate::streaming::{Event, Transaction, TransactionStream};
 use serde::Deserialize;
+
+use crate::{
+    models::Transaction,
+    stream::{TransactionStream, TransactionStreamError},
+};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct FileTransaction {
@@ -52,12 +56,9 @@ impl FileTransactionStream {
 }
 
 impl TransactionStream for FileTransactionStream {
-    fn next(
-        &mut self,
-    ) -> Result<Vec<Transaction>, crate::streaming::TransactionStreamError>
-    {
+    fn next(&mut self) -> Result<Vec<Transaction>, TransactionStreamError> {
         if self.transactions.is_empty() {
-            return Err(crate::streaming::TransactionStreamError::Finished);
+            return Err(TransactionStreamError::Finished);
         }
 
         let transactions = self.transactions.clone();

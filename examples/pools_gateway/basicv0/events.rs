@@ -1,17 +1,16 @@
-use crate::handler::{AppState, BasicV0};
-
-use super::super::handler::Handler;
-
 use radix_engine_common::ScryptoSbor;
-use radix_event_stream::{
-    encodings::encode_bech32, streaming::EventHandlerInput,
-};
+use radix_event_stream::{encodings::encode_bech32, models::EventHandlerInput};
 use sbor::rust::collections::IndexMap;
 use scrypto::{
     math::Decimal,
     network::NetworkDefinition,
     types::{ComponentAddress, ResourceAddress},
 };
+
+#[derive(Debug, Clone)]
+pub struct AppState {
+    pub number: u64,
+}
 
 #[derive(ScryptoSbor, Debug)]
 pub struct InstantiateEvent {
@@ -21,30 +20,32 @@ pub struct InstantiateEvent {
     liquidity_pool_address: ComponentAddress,
     pool_address: ComponentAddress,
 }
+use event_handler::event_handler;
 
+#[event_handler]
 pub fn handle_instantiate_event(
-    input: EventHandlerInput<AppState, Handler, InstantiateEvent>,
+    input: EventHandlerInput<AppState>,
+    event: InstantiateEvent,
 ) {
     let component_address = encode_bech32(
-        input.event.pool_address.as_node_id().as_bytes(),
+        event.pool_address.as_node_id().as_bytes(),
         &NetworkDefinition::mainnet(),
     )
     .unwrap();
     let native_address = encode_bech32(
-        input.event.liquidity_pool_address.as_node_id().as_bytes(),
+        event.liquidity_pool_address.as_node_id().as_bytes(),
         &NetworkDefinition::mainnet(),
     )
     .unwrap();
-    input
-        .handler_registry
-        .add_handler(component_address, Handler::BasicV0(BasicV0::SwapEvent));
     input.handler_registry.add_handler(
-        native_address.clone(),
-        Handler::BasicV0(BasicV0::ContributionEvent),
+        &component_address,
+        "SwapEvent",
+        handle_swap_event,
     );
     input.handler_registry.add_handler(
-        native_address,
-        Handler::BasicV0(BasicV0::RedemptionEvent),
+        &native_address,
+        "ContributionEvent",
+        handle_contribution_event,
     );
 }
 
@@ -57,9 +58,8 @@ pub struct SwapEvent {
     input_fee_lp: Decimal,
 }
 
-pub fn handle_swap_event(
-    input: EventHandlerInput<AppState, Handler, SwapEvent>,
-) {
+#[event_handler]
+pub fn handle_swap_event(input: EventHandlerInput<AppState>, event: SwapEvent) {
 }
 
 #[derive(ScryptoSbor, Debug)]
@@ -68,8 +68,10 @@ pub struct ContributionEvent {
     pub pool_units_minted: Decimal,
 }
 
+#[event_handler]
 pub fn handle_contribution_event(
-    input: EventHandlerInput<AppState, Handler, ContributionEvent>,
+    input: EventHandlerInput<AppState>,
+    event: ContributionEvent,
 ) {
 }
 
@@ -79,7 +81,9 @@ pub struct RedemptionEvent {
     pub redeemed_resources: IndexMap<ResourceAddress, Decimal>,
 }
 
+#[event_handler]
 pub fn handle_redemption_event(
-    input: EventHandlerInput<AppState, Handler, RedemptionEvent>,
+    input: EventHandlerInput<AppState>,
+    event: RedemptionEvent,
 ) {
 }

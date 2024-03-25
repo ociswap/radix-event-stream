@@ -1,6 +1,8 @@
-use crate::streaming::{Event, Transaction};
+use dyn_clone::DynClone;
 use scrypto::prelude::*;
 use std::collections::HashMap;
+
+use crate::models::{EventHandlerInput, Transaction};
 
 /// A registry of handlers that can be used to decode events
 /// coming from the Radix Gateway. You can register your own
@@ -12,53 +14,63 @@ use std::collections::HashMap;
 /// only up to one handler should actually be able to identify
 /// and process an event.
 #[allow(non_camel_case_types)]
-#[derive(Default, Debug, Clone)]
-pub struct HandlerRegistry<EVENT_HANDLER, STATE>
+#[derive(Default, Clone)]
+pub struct HandlerRegistry<STATE>
 where
-    EVENT_HANDLER: EventHandler<EVENT_HANDLER, STATE>,
     STATE: Clone,
 {
-    pub handlers: HashMap<String, Vec<EVENT_HANDLER>>,
-    _marker: std::marker::PhantomData<STATE>,
+    pub handlers: HashMap<(String, String), Box<dyn EventHandler<STATE>>>,
 }
 
 #[allow(non_camel_case_types)]
-impl<EVENT_HANDLER, STATE> HandlerRegistry<EVENT_HANDLER, STATE>
+impl<STATE> HandlerRegistry<STATE>
 where
-    EVENT_HANDLER: EventHandler<EVENT_HANDLER, STATE>,
+    // EVENT_HANDLER: EventHandler<STATE>,
     STATE: Clone,
 {
     pub fn new() -> Self {
         HandlerRegistry {
             handlers: HashMap::new(),
-            _marker: std::marker::PhantomData,
         }
     }
 
-    pub fn add_handler(&mut self, emitter: String, handler: EVENT_HANDLER) {
+    pub fn add_handler(
+        &mut self,
+        emitter: &str,
+        name: &str,
+        handler: impl EventHandler<STATE> + 'static,
+    ) {
         self.handlers
-            .entry(emitter)
-            .or_insert_with(Vec::new)
-            .push(handler);
+            .insert((emitter.to_string(), name.to_string()), Box::new(handler));
     }
 }
 
 #[allow(non_camel_case_types)]
-pub trait EventHandler<EVENT_HANDLER, STATE>: Clone + Debug
+pub trait EventHandler<STATE>: DynClone
 where
-    EVENT_HANDLER: EventHandler<EVENT_HANDLER, STATE>,
     STATE: Clone,
 {
-    fn handle(
-        &self,
-        app_state: &mut STATE,
-        event: &Event,
-        transaction: &Transaction,
-        handler_registry: &mut HandlerRegistry<EVENT_HANDLER, STATE>,
-    );
+    fn handle(&self, input: EventHandlerInput<STATE>, event: Vec<u8>);
+}
 
-    // Add this method to the trait
-    fn match_variant(&self, name: &str) -> bool;
+// Implement EventHandler for all functions that have the correct signature F
+impl<STATE, F> EventHandler<STATE> for F
+where
+    F: Fn(EventHandlerInput<STATE>, Vec<u8>) + Clone,
+    STATE: Clone,
+{
+    fn handle(&self, input: EventHandlerInput<STATE>, event: Vec<u8>) {
+        self(input, event);
+    }
+}
+
+impl<STATE> Clone for Box<dyn EventHandler<STATE>>
+where
+    STATE: Clone,
+{
+    fn clone(&self) -> Self {
+        dyn_clone::clone_box(&**self)
+    }
 }
 
 pub trait TransactionHandler {

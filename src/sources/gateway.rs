@@ -1,13 +1,18 @@
 use crate::{
     encodings::programmatic_json_to_bytes,
-    streaming::{
-        Event, EventEmitter, Transaction, TransactionStream,
-        TransactionStreamError,
-    },
+    models::{Event, EventEmitter, Transaction},
+    stream::{TransactionStream, TransactionStreamError},
 };
 
 use radix_client::{
-    gateway::{models::*, stream::TransactionStreamBlocking},
+    gateway::{
+        models::{
+            CommittedTransactionInfo, EventEmitterIdentifier,
+            LedgerStateSelector, Order, TransactionKindFilter,
+            TransactionStreamOptIns, TransactionStreamRequestBody,
+        },
+        stream::TransactionStreamBlocking,
+    },
     GatewayClientBlocking,
 };
 

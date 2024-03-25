@@ -1,6 +1,5 @@
 use radix_engine_toolkit::functions::scrypto_sbor::{
-    encode, encode_string_representation, ScryptoSborError,
-    StringRepresentation,
+    encode_string_representation, ScryptoSborError, StringRepresentation,
 };
 
 use scrypto::{
