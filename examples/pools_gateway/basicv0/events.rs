@@ -44,7 +44,7 @@ async fn add_to_database(
 pub struct InstantiateEvent {
     x_address: ResourceAddress,
     y_address: ResourceAddress,
-    input_fee_rate: Decimal,
+    context_fee_rate: Decimal,
     liquidity_pool_address: ComponentAddress,
     pool_address: ComponentAddress,
 }
@@ -52,7 +52,7 @@ pub struct InstantiateEvent {
 // Implement the event handler
 #[event_handler]
 pub fn handle_instantiate_event(
-    input: EventHandlerContext<AppState>,
+    context: EventHandlerContext<AppState>,
     event: InstantiateEvent,
 ) {
     // Encode the component address as a bech32 string
@@ -67,21 +67,21 @@ pub fn handle_instantiate_event(
     )
     .unwrap();
 
-    input.app_state.async_runtime.block_on(async {
+    context.app_state.async_runtime.block_on(async {
         add_to_database(
-            &input.app_state.transaction,
-            input.event.binary_sbor_data.clone(),
+            &context.app_state.transaction,
+            context.event.binary_sbor_data.clone(),
         )
         .await;
     });
 
     // Register new event handlers for the new component
-    input.handler_registry.add_handler(
+    context.handler_registry.add_handler(
         &component_address,
         "SwapEvent",
         handle_swap_event,
     );
-    input.handler_registry.add_handler(
+    context.handler_registry.add_handler(
         &native_address,
         "ContributionEvent",
         handle_contribution_event,
@@ -90,22 +90,22 @@ pub fn handle_instantiate_event(
 
 #[derive(ScryptoSbor, Debug)]
 pub struct SwapEvent {
-    input_address: ResourceAddress,
-    input_amount: Decimal,
+    context_address: ResourceAddress,
+    context_amount: Decimal,
     output_address: ResourceAddress,
     output_amount: Decimal,
-    input_fee_lp: Decimal,
+    context_fee_lp: Decimal,
 }
 
 #[event_handler]
 pub fn handle_swap_event(
-    input: EventHandlerContext<AppState>,
+    context: EventHandlerContext<AppState>,
     event: SwapEvent,
 ) {
-    input.app_state.async_runtime.block_on(async {
+    context.app_state.async_runtime.block_on(async {
         add_to_database(
-            &input.app_state.transaction,
-            input.event.binary_sbor_data.clone(),
+            &context.app_state.transaction,
+            context.event.binary_sbor_data.clone(),
         )
         .await;
     });
@@ -119,13 +119,13 @@ pub struct ContributionEvent {
 
 #[event_handler]
 pub fn handle_contribution_event(
-    input: EventHandlerContext<AppState>,
+    context: EventHandlerContext<AppState>,
     event: ContributionEvent,
 ) {
-    input.app_state.async_runtime.block_on(async {
+    context.app_state.async_runtime.block_on(async {
         add_to_database(
-            &input.app_state.transaction,
-            input.event.binary_sbor_data.clone(),
+            &context.app_state.transaction,
+            context.event.binary_sbor_data.clone(),
         )
         .await;
     });
@@ -139,13 +139,13 @@ pub struct RedemptionEvent {
 
 #[event_handler]
 pub fn handle_redemption_event(
-    input: EventHandlerContext<AppState>,
+    context: EventHandlerContext<AppState>,
     event: RedemptionEvent,
 ) {
-    input.app_state.async_runtime.block_on(async {
+    context.app_state.async_runtime.block_on(async {
         add_to_database(
-            &input.app_state.transaction,
-            input.event.binary_sbor_data.clone(),
+            &context.app_state.transaction,
+            context.event.binary_sbor_data.clone(),
         )
         .await;
     });
