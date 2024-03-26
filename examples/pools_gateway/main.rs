@@ -1,5 +1,6 @@
 pub mod basicv0;
 use crate::basicv0::events::{self, AppState};
+use log::error;
 use radix_event_stream::error::EventHandlerError;
 use radix_event_stream::{
     handler::HandlerRegistry, models::IncomingTransaction,
@@ -76,18 +77,11 @@ fn main() {
         });
 
         // Handle the events in the transaction
-        while let Err(err) =
-            transaction.handle_events(app_state, handler_registry)
+        if let Err(err) = transaction.handle_events(app_state, handler_registry)
         {
-            match err {
-                EventHandlerError::TransactionRetryError(err) => {
-                    log::error!("Error handling events: {:?}", err);
-                    std::thread::sleep(std::time::Duration::from_secs(1));
-                    continue;
-                }
-                _ => {
-                    log::error!("Error handling events: {:?}", err);
-                }
+            if let EventHandlerError::UnrecoverableError(err) = err {
+                error!("Unrecoverable error: {}", err);
+                std::process::exit(1);
             }
         }
 
