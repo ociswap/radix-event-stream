@@ -3,8 +3,8 @@ use std::{rc::Rc, sync::Arc};
 use event_handler::event_handler;
 use radix_engine_common::ScryptoSbor;
 use radix_event_stream::{
-    encodings::encode_bech32,
-    models::{EventHandlerContext, IncomingTransaction},
+    encodings::encode_bech32, error::EventHandlerError,
+    models::EventHandlerContext,
 };
 use sbor::rust::collections::IndexMap;
 use scrypto::{
@@ -12,7 +12,7 @@ use scrypto::{
     network::NetworkDefinition,
     types::{ComponentAddress, ResourceAddress},
 };
-use sqlx::{Executor, Sqlite};
+use sqlx::Sqlite;
 use std::sync::Mutex;
 
 // Define a global state
@@ -28,7 +28,7 @@ pub struct AppState {
 async fn add_to_database(
     tx: &Mutex<Option<sqlx::Transaction<'static, Sqlite>>>,
     data: Vec<u8>,
-) {
+) -> Result<(), sqlx::Error> {
     let mut tx_guard = tx.lock().unwrap();
     let ding = tx_guard.as_mut().unwrap();
 
@@ -36,7 +36,7 @@ async fn add_to_database(
         .bind(data)
         .execute(&mut **ding)
         .await
-        .unwrap();
+        .map(|_| ())
 }
 
 // Copy and paste events over from a blueprint
@@ -54,26 +54,27 @@ pub struct InstantiateEvent {
 pub fn handle_instantiate_event(
     context: EventHandlerContext<AppState>,
     event: InstantiateEvent,
-) {
+) -> Result<(), EventHandlerError> {
     // Encode the component address as a bech32 string
     let component_address = encode_bech32(
         event.pool_address.as_node_id().as_bytes(),
         &NetworkDefinition::mainnet(),
     )
-    .unwrap();
+    .map_err(|err| EventHandlerError::EventRetryError(err.into()))?;
     let native_address = encode_bech32(
         event.liquidity_pool_address.as_node_id().as_bytes(),
         &NetworkDefinition::mainnet(),
     )
-    .unwrap();
+    .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))?;
 
     context.app_state.async_runtime.block_on(async {
         add_to_database(
             &context.app_state.transaction,
             context.event.binary_sbor_data.clone(),
         )
-        .await;
-    });
+        .await
+        .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))
+    })?;
 
     // Register new event handlers for the new component
     context.handler_registry.add_handler(
@@ -86,6 +87,7 @@ pub fn handle_instantiate_event(
         "ContributionEvent",
         handle_contribution_event,
     );
+    Ok(())
 }
 
 #[derive(ScryptoSbor, Debug)]
@@ -101,14 +103,16 @@ pub struct SwapEvent {
 pub fn handle_swap_event(
     context: EventHandlerContext<AppState>,
     event: SwapEvent,
-) {
+) -> Result<(), EventHandlerError> {
     context.app_state.async_runtime.block_on(async {
         add_to_database(
             &context.app_state.transaction,
             context.event.binary_sbor_data.clone(),
         )
-        .await;
-    });
+        .await
+        .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))
+    })?;
+    Ok(())
 }
 
 #[derive(ScryptoSbor, Debug)]
@@ -121,14 +125,16 @@ pub struct ContributionEvent {
 pub fn handle_contribution_event(
     context: EventHandlerContext<AppState>,
     event: ContributionEvent,
-) {
+) -> Result<(), EventHandlerError> {
     context.app_state.async_runtime.block_on(async {
         add_to_database(
             &context.app_state.transaction,
             context.event.binary_sbor_data.clone(),
         )
-        .await;
-    });
+        .await
+        .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))
+    })?;
+    Ok(())
 }
 
 #[derive(ScryptoSbor, Debug)]
@@ -141,12 +147,14 @@ pub struct RedemptionEvent {
 pub fn handle_redemption_event(
     context: EventHandlerContext<AppState>,
     event: RedemptionEvent,
-) {
+) -> Result<(), EventHandlerError> {
     context.app_state.async_runtime.block_on(async {
         add_to_database(
             &context.app_state.transaction,
             context.event.binary_sbor_data.clone(),
         )
-        .await;
-    });
+        .await
+        .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))
+    })?;
+    Ok(())
 }

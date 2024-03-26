@@ -3,7 +3,7 @@ use radix_engine_toolkit::functions::scrypto_sbor::{
 };
 
 use scrypto::{
-    address::AddressBech32Encoder,
+    address::{AddressBech32EncodeError, AddressBech32Encoder},
     data::scrypto::{scrypto_decode, ScryptoDecode},
     network::NetworkDefinition,
 };
@@ -32,6 +32,6 @@ pub fn programmatic_json_to_bytes(
 pub fn encode_bech32(
     data: &[u8],
     network: &NetworkDefinition,
-) -> Option<String> {
-    AddressBech32Encoder::new(network).encode(data).ok()
+) -> Result<String, AddressBech32EncodeError> {
+    AddressBech32Encoder::new(network).encode(data)
 }

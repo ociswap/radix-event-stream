@@ -1,7 +1,5 @@
 use crate::handler::HandlerRegistry;
 use chrono::Utc;
-use colored::Colorize;
-use log::info;
 
 #[derive(Debug)]
 pub struct IncomingEvent {
@@ -38,44 +36,6 @@ pub struct IncomingTransaction {
     pub state_version: u64,
     pub confirmed_at: Option<chrono::DateTime<Utc>>,
     pub events: Vec<IncomingEvent>,
-}
-
-#[allow(non_camel_case_types)]
-impl IncomingTransaction {
-    pub fn handle_events<STATE>(
-        &self,
-        app_state: &mut STATE,
-        handler_registry: &mut HandlerRegistry<STATE>,
-    ) where
-        STATE: Clone,
-    {
-        self.events.iter().for_each(|event| {
-            let handler_registry_clone = handler_registry.clone();
-
-            let event_handler = match handler_registry_clone
-                .handlers
-                .get(&(event.emitter.address().to_string(), event.name.clone()))
-            {
-                Some(handlers) => handlers,
-                None => return,
-            };
-
-            info!(
-                "{}",
-                format!("HANDLING EVENT: {}", event.name).bright_yellow()
-            );
-
-            event_handler.handle(
-                EventHandlerContext {
-                    app_state,
-                    transaction: self,
-                    event,
-                    handler_registry,
-                },
-                event.binary_sbor_data.clone(),
-            );
-        });
-    }
 }
 
 #[allow(non_camel_case_types)]

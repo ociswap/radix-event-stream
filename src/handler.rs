@@ -2,7 +2,10 @@ use dyn_clone::DynClone;
 use scrypto::prelude::*;
 use std::collections::HashMap;
 
-use crate::models::{EventHandlerContext, IncomingTransaction};
+use crate::{
+    error::EventHandlerError,
+    models::{EventHandlerContext, IncomingTransaction},
+};
 
 /// A registry that stores event handlers.
 #[allow(non_camel_case_types)]
@@ -41,17 +44,26 @@ pub trait EventHandler<STATE>: DynClone
 where
     STATE: Clone,
 {
-    fn handle(&self, input: EventHandlerContext<STATE>, event: Vec<u8>);
+    fn handle(
+        &self,
+        input: EventHandlerContext<STATE>,
+        event: Vec<u8>,
+    ) -> Result<(), EventHandlerError>;
 }
 
 // Implement EventHandler for all functions that have the correct signature F
 impl<STATE, F> EventHandler<STATE> for F
 where
-    F: Fn(EventHandlerContext<STATE>, Vec<u8>) + Clone,
+    F: Fn(EventHandlerContext<STATE>, Vec<u8>) -> Result<(), EventHandlerError>
+        + Clone,
     STATE: Clone,
 {
-    fn handle(&self, input: EventHandlerContext<STATE>, event: Vec<u8>) {
-        self(input, event);
+    fn handle(
+        &self,
+        input: EventHandlerContext<STATE>,
+        event: Vec<u8>,
+    ) -> Result<(), EventHandlerError> {
+        self(input, event)
     }
 }
 

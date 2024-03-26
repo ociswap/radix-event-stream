@@ -1,11 +1,11 @@
 pub mod basicv0;
 use crate::basicv0::events::{self, AppState};
+use radix_event_stream::error::EventHandlerError;
 use radix_event_stream::{
     handler::HandlerRegistry, models::IncomingTransaction,
     processor::TransactionStreamProcessor,
     sources::gateway::GatewayTransactionStream,
 };
-use sqlx::Acquire;
 use sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -76,7 +76,20 @@ fn main() {
         });
 
         // Handle the events in the transaction
-        transaction.handle_events(app_state, handler_registry);
+        while let Err(err) =
+            transaction.handle_events(app_state, handler_registry)
+        {
+            match err {
+                EventHandlerError::TransactionRetryError(err) => {
+                    log::error!("Error handling events: {:?}", err);
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                    continue;
+                }
+                _ => {
+                    log::error!("Error handling events: {:?}", err);
+                }
+            }
+        }
 
         // Commit the database transaction
         app_state.async_runtime.block_on(async {

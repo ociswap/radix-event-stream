@@ -1,4 +1,5 @@
 pub mod encodings;
+pub mod error;
 pub mod handler;
 pub mod models;
 pub mod processor;
