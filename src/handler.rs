@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use crate::models::{EventHandlerContext, Transaction};
 
+/// A registry that stores event handlers.
 #[allow(non_camel_case_types)]
 #[derive(Default, Clone)]
 pub struct HandlerRegistry<STATE>

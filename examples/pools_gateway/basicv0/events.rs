@@ -1,6 +1,10 @@
+use std::{rc::Rc, sync::Arc};
+
+use event_handler::event_handler;
 use radix_engine_common::ScryptoSbor;
 use radix_event_stream::{
-    encodings::encode_bech32, models::EventHandlerContext,
+    encodings::encode_bech32,
+    models::{EventHandlerContext, Transaction},
 };
 use sbor::rust::collections::IndexMap;
 use scrypto::{
@@ -8,12 +12,20 @@ use scrypto::{
     network::NetworkDefinition,
     types::{ComponentAddress, ResourceAddress},
 };
+use sqlx::{Executor, Sqlite};
+use std::sync::Mutex;
 
+// Define a global state
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub number: u64,
+    pub async_runtime: Rc<tokio::runtime::Runtime>,
+    pub pool: sqlx::Pool<sqlx::Sqlite>,
+    pub transaction:
+        Arc<Mutex<Option<sqlx::Transaction<'static, sqlx::Sqlite>>>>,
 }
 
+// Copy and paste events over from a blueprint
 #[derive(ScryptoSbor, Debug)]
 pub struct InstantiateEvent {
     x_address: ResourceAddress,
@@ -22,13 +34,14 @@ pub struct InstantiateEvent {
     liquidity_pool_address: ComponentAddress,
     pool_address: ComponentAddress,
 }
-use event_handler::event_handler;
 
+// Implement the event handler
 #[event_handler]
 pub fn handle_instantiate_event(
     input: EventHandlerContext<AppState>,
     event: InstantiateEvent,
 ) {
+    // Encode the component address as a bech32 string
     let component_address = encode_bech32(
         event.pool_address.as_node_id().as_bytes(),
         &NetworkDefinition::mainnet(),
@@ -39,6 +52,21 @@ pub fn handle_instantiate_event(
         &NetworkDefinition::mainnet(),
     )
     .unwrap();
+
+    input.app_state.async_runtime.block_on(async {
+        let tx = &input.app_state.transaction;
+        let mut tx_guard = tx.lock().unwrap();
+        // insert the new event into the database as text.
+        let ding = tx_guard.as_mut().unwrap();
+
+        sqlx::query("INSERT INTO events (data) VALUES (?)")
+            .bind(format!("{:#?}", event))
+            .execute(&mut **ding)
+            .await
+            .unwrap();
+    });
+
+    // Register new event handlers for the new component
     input.handler_registry.add_handler(
         &component_address,
         "SwapEvent",

@@ -37,7 +37,7 @@ pub struct InstantiateEvent {
 
 These events are recorded inside of transactions in-sequence and stored on the Radix ledger. This allows developers to track the state of an application by reading events as they happen, and processing them in some specified way. That's what this library aims to achieve.
 
-Events on Radix have an **emitter**. This is the on-ledger entity which emitted the event.
+Events on Radix have an **emitter**. This is the on-ledger entity which emitted the event. Events also have a **name**, which is the name of the event and its data type.
 
 ## How it works
 
