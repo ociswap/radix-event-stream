@@ -23,6 +23,7 @@ pub struct AppState {
     pub pool: sqlx::Pool<sqlx::Sqlite>,
     pub transaction:
         Arc<Mutex<Option<sqlx::Transaction<'static, sqlx::Sqlite>>>>,
+    pub network: NetworkDefinition,
 }
 
 async fn add_to_database(
@@ -58,12 +59,12 @@ pub fn handle_instantiate_event(
     // Encode the component address as a bech32 string
     let component_address = encode_bech32(
         event.pool_address.as_node_id().as_bytes(),
-        &NetworkDefinition::mainnet(),
+        &context.app_state.network,
     )
     .map_err(|err| EventHandlerError::EventRetryError(err.into()))?;
     let native_address = encode_bech32(
         event.liquidity_pool_address.as_node_id().as_bytes(),
-        &NetworkDefinition::mainnet(),
+        &context.app_state.network,
     )
     .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))?;
 

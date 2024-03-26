@@ -112,6 +112,7 @@ fn main() {
             async_runtime: Rc::new(runtime),
             pool,
             transaction: Arc::new(Mutex::new(None)),
+            network: scrypto::network::NetworkDefinition::mainnet(),
         },
     );
 }
