@@ -4,7 +4,7 @@ use colored::Colorize;
 use log::info;
 
 #[derive(Debug)]
-pub struct Event {
+pub struct IncomingEvent {
     pub name: String,
     pub binary_sbor_data: Vec<u8>,
     pub emitter: EventEmitter,
@@ -33,15 +33,15 @@ impl EventEmitter {
 }
 
 #[derive(Debug)]
-pub struct Transaction {
+pub struct IncomingTransaction {
     pub intent_hash: String,
     pub state_version: u64,
     pub confirmed_at: Option<chrono::DateTime<Utc>>,
-    pub events: Vec<Event>,
+    pub events: Vec<IncomingEvent>,
 }
 
 #[allow(non_camel_case_types)]
-impl Transaction {
+impl IncomingTransaction {
     pub fn handle_events<STATE>(
         &self,
         app_state: &mut STATE,
@@ -69,6 +69,7 @@ impl Transaction {
                 EventHandlerContext {
                     app_state,
                     transaction: self,
+                    event,
                     handler_registry,
                 },
                 event.binary_sbor_data.clone(),
@@ -83,6 +84,7 @@ where
     STATE: Clone,
 {
     pub app_state: &'a mut STATE,
-    pub transaction: &'a Transaction,
+    pub transaction: &'a IncomingTransaction,
+    pub event: &'a IncomingEvent,
     pub handler_registry: &'a mut HandlerRegistry<STATE>,
 }

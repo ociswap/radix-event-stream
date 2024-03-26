@@ -4,7 +4,7 @@ use event_handler::event_handler;
 use radix_engine_common::ScryptoSbor;
 use radix_event_stream::{
     encodings::encode_bech32,
-    models::{EventHandlerContext, Transaction},
+    models::{EventHandlerContext, IncomingTransaction},
 };
 use sbor::rust::collections::IndexMap;
 use scrypto::{
@@ -23,6 +23,20 @@ pub struct AppState {
     pub pool: sqlx::Pool<sqlx::Sqlite>,
     pub transaction:
         Arc<Mutex<Option<sqlx::Transaction<'static, sqlx::Sqlite>>>>,
+}
+
+async fn add_to_database(
+    tx: &Mutex<Option<sqlx::Transaction<'static, Sqlite>>>,
+    data: Vec<u8>,
+) {
+    let mut tx_guard = tx.lock().unwrap();
+    let ding = tx_guard.as_mut().unwrap();
+
+    sqlx::query("INSERT INTO events (data) VALUES (?)")
+        .bind(data)
+        .execute(&mut **ding)
+        .await
+        .unwrap();
 }
 
 // Copy and paste events over from a blueprint
@@ -54,16 +68,11 @@ pub fn handle_instantiate_event(
     .unwrap();
 
     input.app_state.async_runtime.block_on(async {
-        let tx = &input.app_state.transaction;
-        let mut tx_guard = tx.lock().unwrap();
-        // insert the new event into the database as text.
-        let ding = tx_guard.as_mut().unwrap();
-
-        sqlx::query("INSERT INTO events (data) VALUES (?)")
-            .bind(format!("{:#?}", event))
-            .execute(&mut **ding)
-            .await
-            .unwrap();
+        add_to_database(
+            &input.app_state.transaction,
+            input.event.binary_sbor_data.clone(),
+        )
+        .await;
     });
 
     // Register new event handlers for the new component
@@ -93,6 +102,13 @@ pub fn handle_swap_event(
     input: EventHandlerContext<AppState>,
     event: SwapEvent,
 ) {
+    input.app_state.async_runtime.block_on(async {
+        add_to_database(
+            &input.app_state.transaction,
+            input.event.binary_sbor_data.clone(),
+        )
+        .await;
+    });
 }
 
 #[derive(ScryptoSbor, Debug)]
@@ -106,6 +122,13 @@ pub fn handle_contribution_event(
     input: EventHandlerContext<AppState>,
     event: ContributionEvent,
 ) {
+    input.app_state.async_runtime.block_on(async {
+        add_to_database(
+            &input.app_state.transaction,
+            input.event.binary_sbor_data.clone(),
+        )
+        .await;
+    });
 }
 
 #[derive(ScryptoSbor, Debug)]
@@ -119,4 +142,11 @@ pub fn handle_redemption_event(
     input: EventHandlerContext<AppState>,
     event: RedemptionEvent,
 ) {
+    input.app_state.async_runtime.block_on(async {
+        add_to_database(
+            &input.app_state.transaction,
+            input.event.binary_sbor_data.clone(),
+        )
+        .await;
+    });
 }

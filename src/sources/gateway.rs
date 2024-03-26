@@ -1,6 +1,6 @@
 use crate::{
     encodings::programmatic_json_to_bytes,
-    models::{Event, EventEmitter, Transaction},
+    models::{EventEmitter, IncomingEvent, IncomingTransaction},
     stream::{TransactionStream, TransactionStreamError},
 };
 
@@ -16,8 +16,8 @@ use radix_client::{
     GatewayClientBlocking,
 };
 
-impl Into<Event> for radix_client::gateway::models::Event {
-    fn into(self) -> Event {
+impl Into<IncomingEvent> for radix_client::gateway::models::Event {
+    fn into(self) -> IncomingEvent {
         let emitter = match self.emitter {
             EventEmitterIdentifier::Method { entity, .. } => {
                 EventEmitter::Method {
@@ -32,7 +32,7 @@ impl Into<Event> for radix_client::gateway::models::Event {
                 blueprint_name,
             },
         };
-        Event {
+        IncomingEvent {
             name: self.name,
             emitter: emitter,
             binary_sbor_data: programmatic_json_to_bytes(&self.data).unwrap(),
@@ -40,9 +40,9 @@ impl Into<Event> for radix_client::gateway::models::Event {
     }
 }
 
-impl Into<Transaction> for CommittedTransactionInfo {
-    fn into(self) -> Transaction {
-        Transaction {
+impl Into<IncomingTransaction> for CommittedTransactionInfo {
+    fn into(self) -> IncomingTransaction {
+        IncomingTransaction {
             intent_hash: self.intent_hash.unwrap(),
             state_version: self.state_version,
             confirmed_at: self.confirmed_at,
@@ -89,11 +89,13 @@ impl GatewayTransactionStream {
 }
 
 impl TransactionStream for GatewayTransactionStream {
-    fn next(&mut self) -> Result<Vec<Transaction>, TransactionStreamError> {
+    fn next(
+        &mut self,
+    ) -> Result<Vec<IncomingTransaction>, TransactionStreamError> {
         let response = self.stream.next().map_err(|err| {
             TransactionStreamError::Error(format!("{:?}", err))
         })?;
-        let boxed: Vec<Transaction> =
+        let boxed: Vec<IncomingTransaction> =
             response.items.into_iter().map(|item| item.into()).collect();
         if boxed.is_empty() {
             Err(TransactionStreamError::CaughtUp)

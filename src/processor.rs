@@ -2,7 +2,7 @@ use log::{info, warn};
 
 use crate::{
     handler::HandlerRegistry,
-    models::Transaction,
+    models::IncomingTransaction,
     stream::{TransactionStream, TransactionStreamError},
 };
 use colored::Colorize;
@@ -17,7 +17,7 @@ where
     STREAM: TransactionStream,
     STATE: Clone,
     TRANSACTION_HANDLER:
-        FnMut(&mut STATE, &Transaction, &mut HandlerRegistry<STATE>),
+        FnMut(&mut STATE, &IncomingTransaction, &mut HandlerRegistry<STATE>),
 {
     pub transaction_stream: STREAM,
     pub handler_registry: HandlerRegistry<STATE>,
@@ -32,7 +32,7 @@ where
     STREAM: TransactionStream,
     STATE: Clone,
     TRANSACTION_HANDLER:
-        FnMut(&mut STATE, &Transaction, &mut HandlerRegistry<STATE>),
+        FnMut(&mut STATE, &IncomingTransaction, &mut HandlerRegistry<STATE>),
 {
     pub fn new(
         transaction_stream: STREAM,

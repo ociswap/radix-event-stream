@@ -3,7 +3,7 @@ use std::{fs::File, path::Path};
 use serde::Deserialize;
 
 use crate::{
-    models::Transaction,
+    models::IncomingTransaction,
     stream::{TransactionStream, TransactionStreamError},
 };
 
@@ -15,9 +15,9 @@ pub struct FileTransaction {
     pub events: Vec<radix_client::gateway::models::Event>,
 }
 
-impl Into<Transaction> for FileTransaction {
-    fn into(self) -> Transaction {
-        Transaction {
+impl Into<IncomingTransaction> for FileTransaction {
+    fn into(self) -> IncomingTransaction {
+        IncomingTransaction {
             intent_hash: self.intent_hash,
             state_version: self.state_version,
             confirmed_at: Some(chrono::DateTime::from_timestamp_nanos(
@@ -56,14 +56,16 @@ impl FileTransactionStream {
 }
 
 impl TransactionStream for FileTransactionStream {
-    fn next(&mut self) -> Result<Vec<Transaction>, TransactionStreamError> {
+    fn next(
+        &mut self,
+    ) -> Result<Vec<IncomingTransaction>, TransactionStreamError> {
         if self.transactions.is_empty() {
             return Err(TransactionStreamError::Finished);
         }
 
         let transactions = self.transactions.clone();
         self.transactions.clear();
-        let transactions: Vec<Transaction> = transactions
+        let transactions: Vec<IncomingTransaction> = transactions
             .into_iter()
             .map(|transaction| transaction.into())
             .collect();

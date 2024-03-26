@@ -2,7 +2,7 @@ use dyn_clone::DynClone;
 use scrypto::prelude::*;
 use std::collections::HashMap;
 
-use crate::models::{EventHandlerContext, Transaction};
+use crate::models::{EventHandlerContext, IncomingTransaction};
 
 /// A registry that stores event handlers.
 #[allow(non_camel_case_types)]
@@ -65,5 +65,5 @@ where
 }
 
 pub trait TransactionHandler {
-    fn handle(&self, transaction: Transaction);
+    fn handle(&self, transaction: IncomingTransaction);
 }
