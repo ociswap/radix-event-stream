@@ -1,10 +1,10 @@
-use std::{rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc};
 
 use event_handler::event_handler;
 use radix_engine_common::ScryptoSbor;
 use radix_event_stream::{
     encodings::encode_bech32, error::EventHandlerError,
-    models::EventHandlerContext,
+    event_handler::EventHandlerContext,
 };
 use sbor::rust::collections::IndexMap;
 use scrypto::{
@@ -13,24 +13,23 @@ use scrypto::{
     types::{ComponentAddress, ResourceAddress},
 };
 use sqlx::Sqlite;
-use std::sync::Mutex;
 
 // Define a global state
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub number: u64,
     pub async_runtime: Rc<tokio::runtime::Runtime>,
-    pub pool: sqlx::Pool<sqlx::Sqlite>,
+    pub pool: Rc<sqlx::Pool<sqlx::Sqlite>>,
     pub transaction:
-        Arc<Mutex<Option<sqlx::Transaction<'static, sqlx::Sqlite>>>>,
+        Rc<RefCell<Option<sqlx::Transaction<'static, sqlx::Sqlite>>>>,
     pub network: NetworkDefinition,
 }
 
 async fn add_to_database(
-    tx: &Mutex<Option<sqlx::Transaction<'static, Sqlite>>>,
+    tx: &Rc<RefCell<Option<sqlx::Transaction<'static, Sqlite>>>>,
     data: Vec<u8>,
 ) -> Result<(), sqlx::Error> {
-    let mut tx_guard = tx.lock().unwrap();
+    let mut tx_guard = tx.borrow_mut();
     let ding = tx_guard.as_mut().unwrap();
 
     sqlx::query("INSERT INTO events (data) VALUES (?)")

@@ -1,4 +1,3 @@
-use crate::handler::HandlerRegistry;
 use chrono::Utc;
 
 #[derive(Debug)]
@@ -36,15 +35,4 @@ pub struct IncomingTransaction {
     pub state_version: u64,
     pub confirmed_at: Option<chrono::DateTime<Utc>>,
     pub events: Vec<IncomingEvent>,
-}
-
-#[allow(non_camel_case_types)]
-pub struct EventHandlerContext<'a, STATE>
-where
-    STATE: Clone,
-{
-    pub app_state: &'a mut STATE,
-    pub transaction: &'a IncomingTransaction,
-    pub event: &'a IncomingEvent,
-    pub handler_registry: &'a mut HandlerRegistry<STATE>,
 }

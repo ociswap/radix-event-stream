@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use crate::{
     error::EventHandlerError,
-    models::{EventHandlerContext, IncomingTransaction},
+    models::{IncomingEvent, IncomingTransaction},
 };
 
 /// A registry that stores event handlers.
@@ -76,6 +76,13 @@ where
     }
 }
 
-pub trait TransactionHandler {
-    fn handle(&self, transaction: IncomingTransaction);
+#[allow(non_camel_case_types)]
+pub struct EventHandlerContext<'a, STATE>
+where
+    STATE: Clone,
+{
+    pub app_state: &'a mut STATE,
+    pub transaction: &'a IncomingTransaction,
+    pub event: &'a IncomingEvent,
+    pub handler_registry: &'a mut HandlerRegistry<STATE>,
 }

@@ -1,15 +1,14 @@
 pub mod basicv0;
 use crate::basicv0::events::{self, AppState};
 use log::error;
-use radix_event_stream::error::EventHandlerError;
+use radix_event_stream::error::TransactionHandlerError;
+use radix_event_stream::transaction_handler::TransactionHandlerContext;
 use radix_event_stream::{
-    handler::HandlerRegistry, models::IncomingTransaction,
-    processor::TransactionStreamProcessor,
+    event_handler::HandlerRegistry, processor::TransactionStreamProcessor,
     sources::gateway::GatewayTransactionStream,
 };
 use sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::cell::RefCell;
 use std::{env, rc::Rc};
 
 fn main() {
@@ -64,35 +63,30 @@ fn main() {
     // Define a generic handler for transactions,
     // which the processor will call for each transaction.
     fn transaction_handler(
-        app_state: &mut AppState,
-        transaction: &IncomingTransaction,
-        handler_registry: &mut HandlerRegistry<AppState>,
-    ) {
+        context: TransactionHandlerContext<AppState>,
+    ) -> Result<(), TransactionHandlerError> {
         // Do something like start a database transaction
-        app_state.async_runtime.block_on(async {
+        context.app_state.async_runtime.block_on(async {
             // start a database transaction
-            let tx = app_state.pool.begin().await.unwrap();
-            app_state.transaction = Arc::new(Mutex::new(Some(tx)));
+            let tx = context.app_state.pool.begin().await.unwrap();
+            context.app_state.transaction = Rc::new(RefCell::new(Some(tx)));
         });
 
         // Handle the events in the transaction
-        if let Err(err) = transaction.handle_events(app_state, handler_registry)
-        {
-            if let EventHandlerError::UnrecoverableError(err) = err {
-                error!("Unrecoverable error: {}", err);
-                std::process::exit(1);
-            }
-        }
+        context
+            .transaction
+            .handle_events(context.app_state, context.handler_registry)?;
 
         // Commit the database transaction
-        app_state.async_runtime.block_on(async {
+        context.app_state.async_runtime.block_on(async {
             // commit the database transaction
-            let mut tx_guard = app_state.transaction.lock().unwrap();
+            let mut tx_guard = context.app_state.transaction.borrow_mut();
             if let Some(tx) = tx_guard.take() {
                 // Take the transaction out safely
                 tx.commit().await.unwrap();
             }
         });
+        Ok(())
     }
 
     if arg == "file" {
@@ -111,8 +105,8 @@ fn main() {
             AppState {
                 number: 0,
                 async_runtime: Rc::new(runtime),
-                pool,
-                transaction: Arc::new(Mutex::new(None)),
+                pool: Rc::new(pool),
+                transaction: Rc::new(RefCell::new(None)),
                 network: scrypto::network::NetworkDefinition::mainnet(),
             },
         );
@@ -133,8 +127,8 @@ fn main() {
             AppState {
                 number: 0,
                 async_runtime: Rc::new(runtime),
-                pool,
-                transaction: Arc::new(Mutex::new(None)),
+                pool: Rc::new(pool),
+                transaction: Rc::new(RefCell::new(None)),
                 network: scrypto::network::NetworkDefinition::mainnet(),
             },
         );
