@@ -171,26 +171,26 @@ To make the transaction stream have any kind of sense of ledger transactions, we
 A transaction handler takes in a `TransactionHandlerContext` struct, and returns a result with a `TransactionHandlerError`.
 
 ```rust
-    fn transaction_handler(
-        context: TransactionHandlerContext<AppState>,
-    ) -> Result<(), TransactionHandlerError> {
-        Ok(())
-    }
+fn transaction_handler(
+    context: TransactionHandlerContext<AppState>,
+) -> Result<(), TransactionHandlerError> {
+    Ok(())
+}
 ```
 
 The `TransactionHandlerContext` holds a reference to the `IncomingTransaction`. A method called `handle_events` is implemented on this struct. Calling it will iterate through the events inside the transactions and process the events which have handlers registered. It is highly recommended to use this method in your transaction handler. It is possible to implement your own loop, but it is an integral part of the library and also handles the event retry logic and some logging.
 
 ```rust
-    fn transaction_handler(
-        context: TransactionHandlerContext<AppState>,
-    ) -> Result<(), TransactionHandlerError> {
-        // Do something before handling events
-        context
-            .transaction
-            .handle_events(context.app_state, context.handler_registry)?;
-        // Do something after handling events
-        Ok(())
-    }
+fn transaction_handler(
+    context: TransactionHandlerContext<AppState>,
+) -> Result<(), TransactionHandlerError> {
+    // Do something before handling events
+    context
+        .transaction
+        .handle_events(context.app_state, context.handler_registry)?;
+    // Do something after handling events
+    Ok(())
+}
 ```
 
 ### Step 7: Run the stream processor.
