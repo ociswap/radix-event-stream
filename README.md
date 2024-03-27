@@ -109,7 +109,7 @@ pub enum EventHandlerError {
 }
 ```
 
-By returning different errors, you may control how the stream behaves. It can retry handling the current event directly, retry the whole transaction handler, or exit completely. **Beware:** This could mean your handlers will be called multiple times if an error occurs. When using this option, sure your handlers are somehow idempotent or atomic, so that running them multiple times is fine.
+By returning different errors, you may control how the stream behaves. It can retry handling the current event directly, retry the whole transaction handler, or exit completely. **Beware:** This could mean your handlers will be called multiple times if an error occurs. When using this option, ensure your handlers are somehow idempotent or atomic, so that running them multiple times is fine.
 
 ### Step 4: Register handlers.
 
