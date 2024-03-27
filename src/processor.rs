@@ -1,57 +1,54 @@
-use std::thread::sleep;
+use std::{future::Future, thread::sleep};
 
+use async_trait::async_trait;
 use log::{error, info, warn};
 
 use crate::{
     error::EventHandlerError,
-    handler::HandlerRegistry,
+    handler::{AppState, HandlerRegistry},
     models::{EventHandlerContext, IncomingTransaction},
     stream::{TransactionStream, TransactionStreamError},
 };
 use colored::Colorize;
+use futures::future::BoxFuture;
 
 /// Uses a `TransactionStream` to process transactions and
 /// events using a `HandlerRegistry`. Register event handlers
 /// using the `HandlerRegistry` and then call `run` to start
 /// processing transactions.
 #[allow(non_camel_case_types)]
-pub struct TransactionStreamProcessor<STREAM, TRANSACTION_HANDLER, STATE>
+pub struct TransactionStreamProcessor<STREAM, STATE>
 where
     STREAM: TransactionStream,
-    STATE: Clone,
-    TRANSACTION_HANDLER:
-        FnMut(&mut STATE, &IncomingTransaction, &mut HandlerRegistry<STATE>),
+    STATE: AppState,
 {
     pub transaction_stream: STREAM,
     pub handler_registry: HandlerRegistry<STATE>,
-    pub transaction_handler: TRANSACTION_HANDLER,
+    pub transaction_handler: Box<dyn TransactionHandler<STATE>>,
     pub app_state: STATE,
 }
 
 #[allow(non_camel_case_types)]
-impl<STREAM, TRANSACTION_HANDLER, STATE>
-    TransactionStreamProcessor<STREAM, TRANSACTION_HANDLER, STATE>
+impl<STREAM, STATE> TransactionStreamProcessor<STREAM, STATE>
 where
     STREAM: TransactionStream,
-    STATE: Clone,
-    TRANSACTION_HANDLER:
-        FnMut(&mut STATE, &IncomingTransaction, &mut HandlerRegistry<STATE>),
+    STATE: AppState,
 {
     pub fn new(
         transaction_stream: STREAM,
         handler_registry: HandlerRegistry<STATE>,
-        transaction_handler: TRANSACTION_HANDLER,
+        transaction_handler: impl TransactionHandler<STATE> + 'static,
         state: STATE,
     ) -> Self {
         TransactionStreamProcessor {
             transaction_stream,
             handler_registry,
-            transaction_handler,
+            transaction_handler: Box::new(transaction_handler),
             app_state: state,
         }
     }
 
-    pub fn run(&mut self) {
+    pub async fn run(&mut self) {
         loop {
             let transactions = match self.transaction_stream.next() {
                 Err(error) => match error {
@@ -77,12 +74,14 @@ where
                 Ok(transactions) => transactions,
             };
 
-            transactions.iter().for_each(|transaction| {
+            for transaction in transactions.iter() {
                 let handler_exists = transaction.events.iter().any(|event| {
-                    self
-                        .handler_registry
+                    self.handler_registry
                         .handlers
-                        .get(&(event.emitter.address().to_string(), event.name.clone()))
+                        .get(&(
+                            event.emitter.address().to_string(),
+                            event.name.clone(),
+                        ))
                         .is_some()
                 });
                 if !handler_exists {
@@ -99,20 +98,23 @@ where
                     )
                     .bright_green()
                 );
-                (self.transaction_handler)(
-                    &mut self.app_state,
-                    transaction,
-                    &mut self.handler_registry,
-                );
+                (self.transaction_handler)
+                    .handle(
+                        &mut self.app_state,
+                        transaction,
+                        &mut self.handler_registry,
+                    )
+                    .await
+                    .unwrap();
                 info!("{}", "###### END TRANSACTION ######\n".bright_green());
-            });
+            }
         }
     }
 
     pub fn run_with(
         transaction_stream: STREAM,
         handler_registry: HandlerRegistry<STATE>,
-        transaction_handler: TRANSACTION_HANDLER,
+        transaction_handler: impl TransactionHandler<STATE> + 'static,
         state: STATE,
     ) {
         let mut processor = TransactionStreamProcessor::new(
@@ -125,73 +127,94 @@ where
     }
 }
 
+#[allow(non_camel_case_types)]
 pub struct SimpleTransactionStreamProcessor<STREAM, STATE>
 where
     STREAM: TransactionStream,
-    STATE: Clone,
+    STATE: AppState,
 {
-    processor: TransactionStreamProcessor<
-        STREAM,
-        fn(&mut STATE, &IncomingTransaction, &mut HandlerRegistry<STATE>),
-        STATE,
-    >,
+    processor: TransactionStreamProcessor<STREAM, STATE>,
 }
 
-impl<STREAM, STATE> SimpleTransactionStreamProcessor<STREAM, STATE>
+pub trait TransactionHandler<STATE>: Send + Sync
 where
-    STREAM: TransactionStream,
-    STATE: Clone,
+    STATE: AppState,
 {
-    pub fn new(
-        transaction_stream: STREAM,
-        handler_registry: HandlerRegistry<STATE>,
-        state: STATE,
-    ) -> Self {
-        let processor = TransactionStreamProcessor::new(
-            transaction_stream,
-            handler_registry,
-            default_transaction_handler
-                as fn(
-                    &mut STATE,
-                    &IncomingTransaction,
-                    &mut HandlerRegistry<STATE>,
-                ),
-            state,
-        );
-        SimpleTransactionStreamProcessor { processor }
-    }
+    fn handle(
+        &self,
+        app_state: &mut STATE,
+        transaction: &IncomingTransaction,
+        handler_registry: &mut HandlerRegistry<STATE>,
+    ) -> BoxFuture<'static, Result<(), EventHandlerError>>;
+}
 
-    pub fn run(&mut self) {
-        self.processor.run();
-    }
-
-    pub fn run_with(
-        transaction_stream: STREAM,
-        handler_registry: HandlerRegistry<STATE>,
-        state: STATE,
-    ) {
-        let mut processor = SimpleTransactionStreamProcessor::new(
-            transaction_stream,
-            handler_registry,
-            state,
-        );
-        processor.run();
+impl<STATE, F, T> TransactionHandler<STATE> for F
+where
+    F: Fn(&mut STATE, &IncomingTransaction, &mut HandlerRegistry<STATE>) -> T
+        + Send
+        + Sync,
+    T: Future<Output = Result<(), EventHandlerError>> + Send + 'static,
+    STATE: AppState,
+{
+    fn handle(
+        &self,
+        app_state: &mut STATE,
+        transaction: &IncomingTransaction,
+        handler_registry: &mut HandlerRegistry<STATE>,
+    ) -> BoxFuture<'static, Result<(), EventHandlerError>> {
+        Box::pin(self(app_state, transaction, handler_registry))
     }
 }
 
-fn default_transaction_handler<STATE: Clone>(
+// #[allow(non_camel_case_types)]
+// impl<STREAM, STATE> SimpleTransactionStreamProcessor<STREAM, STATE>
+// where
+//     STREAM: TransactionStream,
+//     STATE: AppState,
+// {
+//     pub fn new(
+//         transaction_stream: STREAM,
+//         handler_registry: HandlerRegistry<STATE>,
+//         state: STATE,
+//     ) -> Self {
+//         let processor = TransactionStreamProcessor::new(
+//             transaction_stream,
+//             handler_registry,
+//             default_transaction_handler,
+//             state,
+//         );
+//         SimpleTransactionStreamProcessor { processor }
+//     }
+
+//     pub fn run(&mut self) {
+//         self.processor.run();
+//     }
+
+//     pub fn run_with(
+//         transaction_stream: STREAM,
+//         handler_registry: HandlerRegistry<STATE>,
+//         state: STATE,
+//     ) {
+//         let mut processor = SimpleTransactionStreamProcessor::new(
+//             transaction_stream,
+//             handler_registry,
+//             state,
+//         );
+//         processor.run();
+//     }
+// }
+
+async fn default_transaction_handler<STATE: AppState>(
     app_state: &mut STATE,
     transaction: &IncomingTransaction,
     handler_registry: &mut HandlerRegistry<STATE>,
-) {
-    transaction
-        .handle_events(app_state, handler_registry)
-        .unwrap();
+) -> Result<(), EventHandlerError> {
+    transaction.handle_events(app_state, handler_registry).await
 }
 
 #[allow(non_camel_case_types)]
 impl IncomingTransaction {
-    fn event_loop<STATE: Clone>(
+    async fn event_loop<STATE: AppState>(
         &self,
         app_state: &mut STATE,
         handler_registry: &mut HandlerRegistry<STATE>,
@@ -210,15 +233,18 @@ impl IncomingTransaction {
                 "{}",
                 format!("HANDLING EVENT: {}", event.name).bright_yellow()
             );
-            while let Err(err) = event_handler.handle(
-                EventHandlerContext {
-                    app_state,
-                    transaction: self,
-                    event,
-                    handler_registry,
-                },
-                event.binary_sbor_data.clone(),
-            ) {
+            while let Err(err) = event_handler
+                .handle(
+                    EventHandlerContext {
+                        app_state,
+                        transaction: self,
+                        event,
+                        handler_registry,
+                    },
+                    event.binary_sbor_data.clone(),
+                )
+                .await
+            {
                 match err {
                     EventHandlerError::EventRetryError(e) => {
                         error!(
@@ -246,15 +272,16 @@ impl IncomingTransaction {
         }
         Ok(())
     }
-    pub fn handle_events<STATE>(
+    pub async fn handle_events<STATE>(
         &self,
         app_state: &mut STATE,
         handler_registry: &mut HandlerRegistry<STATE>,
     ) -> Result<(), EventHandlerError>
     where
-        STATE: Clone,
+        STATE: AppState,
     {
-        while let Err(err) = self.event_loop(app_state, handler_registry) {
+        while let Err(err) = self.event_loop(app_state, handler_registry).await
+        {
             match err {
                 EventHandlerError::TransactionRetryError(err) => {
                     error!(

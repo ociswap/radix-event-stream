@@ -19,10 +19,9 @@ use std::sync::Mutex;
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub number: u64,
-    pub async_runtime: Rc<tokio::runtime::Runtime>,
     pub pool: sqlx::Pool<sqlx::Sqlite>,
-    pub transaction:
-        Arc<Mutex<Option<sqlx::Transaction<'static, sqlx::Sqlite>>>>,
+    // pub transaction:
+    //     Arc<Mutex<Option<sqlx::Transaction<'static, sqlx::Sqlite>>>>,
     pub network: NetworkDefinition,
 }
 
@@ -68,14 +67,14 @@ pub fn handle_instantiate_event(
     )
     .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))?;
 
-    context.app_state.async_runtime.block_on(async {
-        add_to_database(
-            &context.app_state.transaction,
-            context.event.binary_sbor_data.clone(),
-        )
-        .await
-        .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))
-    })?;
+    // context.app_state.async_runtime.block_on(async {
+    //     add_to_database(
+    //         &context.app_state.transaction,
+    //         context.event.binary_sbor_data.clone(),
+    //     )
+    //     .await
+    //     .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))
+    // })?;
 
     // Register new event handlers for the new component
     context.handler_registry.add_handler(
@@ -105,14 +104,14 @@ pub fn handle_swap_event(
     context: EventHandlerContext<AppState>,
     event: SwapEvent,
 ) -> Result<(), EventHandlerError> {
-    context.app_state.async_runtime.block_on(async {
-        add_to_database(
-            &context.app_state.transaction,
-            context.event.binary_sbor_data.clone(),
-        )
-        .await
-        .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))
-    })?;
+    // context.app_state.async_runtime.block_on(async {
+    //     add_to_database(
+    //         &context.app_state.transaction,
+    //         context.event.binary_sbor_data.clone(),
+    //     )
+    //     .await
+    //     .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))
+    // })?;
     Ok(())
 }
 
@@ -127,14 +126,14 @@ pub fn handle_contribution_event(
     context: EventHandlerContext<AppState>,
     event: ContributionEvent,
 ) -> Result<(), EventHandlerError> {
-    context.app_state.async_runtime.block_on(async {
-        add_to_database(
-            &context.app_state.transaction,
-            context.event.binary_sbor_data.clone(),
-        )
-        .await
-        .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))
-    })?;
+    // context.app_state.async_runtime.block_on(async {
+    //     add_to_database(
+    //         &context.app_state.transaction,
+    //         context.event.binary_sbor_data.clone(),
+    //     )
+    //     .await
+    //     .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))
+    // })?;
     Ok(())
 }
 
@@ -149,13 +148,13 @@ pub fn handle_redemption_event(
     context: EventHandlerContext<AppState>,
     event: RedemptionEvent,
 ) -> Result<(), EventHandlerError> {
-    context.app_state.async_runtime.block_on(async {
-        add_to_database(
-            &context.app_state.transaction,
-            context.event.binary_sbor_data.clone(),
-        )
-        .await
-        .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))
-    })?;
+    // context.app_state.async_runtime.block_on(async {
+    //     add_to_database(
+    //         &context.app_state.transaction,
+    //         context.event.binary_sbor_data.clone(),
+    //     )
+    //     .await
+    //     .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))
+    // })?;
     Ok(())
 }

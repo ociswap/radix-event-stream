@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use dyn_clone::DynClone;
 use scrypto::prelude::*;
 use std::collections::HashMap;
@@ -12,7 +13,7 @@ use crate::{
 #[derive(Default, Clone)]
 pub struct HandlerRegistry<STATE>
 where
-    STATE: Clone,
+    STATE: AppState,
 {
     pub handlers: HashMap<(String, String), Box<dyn EventHandler<STATE>>>,
 }
@@ -20,7 +21,7 @@ where
 #[allow(non_camel_case_types)]
 impl<STATE> HandlerRegistry<STATE>
 where
-    STATE: Clone,
+    STATE: AppState,
 {
     pub fn new() -> Self {
         HandlerRegistry {
@@ -40,27 +41,32 @@ where
 }
 
 #[allow(non_camel_case_types)]
-pub trait EventHandler<STATE>: DynClone
+#[async_trait]
+pub trait EventHandler<STATE>: DynClone + Send + Sync
 where
-    STATE: Clone,
+    STATE: AppState,
 {
-    fn handle(
+    async fn handle(
         &self,
-        input: EventHandlerContext<STATE>,
+        input: EventHandlerContext<'async_trait, STATE>,
         event: Vec<u8>,
     ) -> Result<(), EventHandlerError>;
 }
 
 // Implement EventHandler for all functions that have the correct signature F
+#[async_trait]
 impl<STATE, F> EventHandler<STATE> for F
 where
     F: Fn(EventHandlerContext<STATE>, Vec<u8>) -> Result<(), EventHandlerError>
+        + Send
+        + Sync
+        + 'static
         + Clone,
-    STATE: Clone,
+    STATE: AppState,
 {
-    fn handle(
+    async fn handle(
         &self,
-        input: EventHandlerContext<STATE>,
+        input: EventHandlerContext<'async_trait, STATE>,
         event: Vec<u8>,
     ) -> Result<(), EventHandlerError> {
         self(input, event)
@@ -76,6 +82,5 @@ where
     }
 }
 
-pub trait TransactionHandler {
-    fn handle(&self, transaction: IncomingTransaction);
-}
+pub trait AppState: Clone + Send + Sync {}
+impl<T> AppState for T where T: Clone + Send + Sync {}

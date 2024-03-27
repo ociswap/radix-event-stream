@@ -41,7 +41,7 @@ pub struct IncomingTransaction {
 #[allow(non_camel_case_types)]
 pub struct EventHandlerContext<'a, STATE>
 where
-    STATE: Clone,
+    STATE: Clone + Send + Sync,
 {
     pub app_state: &'a mut STATE,
     pub transaction: &'a IncomingTransaction,
