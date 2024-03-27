@@ -11,7 +11,12 @@ pub trait TransactionStream: Debug {
 
 #[derive(Debug)]
 pub enum TransactionStreamError {
+    /// The stream is caught up with the latest transactions.
+    /// The processor should wait for new transactions and try again.
     CaughtUp,
+    /// The stream is finished and there are no more transactions.
+    /// The processor should stop processing transactions.
     Finished,
+    /// An error occurred while processing the stream.
     Error(String),
 }

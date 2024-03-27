@@ -1,5 +1,9 @@
 use chrono::Utc;
 
+/// Generic struct for incoming events from a
+/// transaction stream. To implement a new transaction
+/// stream type, you would typically implement `Into<IncomingEvent>`
+/// for the native event type of the transaction stream.
 #[derive(Debug)]
 pub struct IncomingEvent {
     pub name: String,
@@ -19,6 +23,7 @@ pub enum EventEmitter {
 }
 
 impl EventEmitter {
+    /// Returns the address of the emitter, regardless of whether it is a method or function.
     pub fn address(&self) -> &str {
         match self {
             EventEmitter::Method { entity_address } => entity_address,
@@ -29,6 +34,10 @@ impl EventEmitter {
     }
 }
 
+/// Generic struct for incoming transactions from a
+/// transaction stream. To implement a new transaction
+/// stream type, you would typically implement `Into<IncomingTransaction>`
+/// for the native transaction type of the transaction stream.
 #[derive(Debug)]
 pub struct IncomingTransaction {
     pub intent_hash: String,

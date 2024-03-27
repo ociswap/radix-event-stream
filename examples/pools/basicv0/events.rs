@@ -104,6 +104,7 @@ pub fn handle_swap_event(
     context: EventHandlerContext<AppState>,
     event: SwapEvent,
 ) -> Result<(), EventHandlerError> {
+    // info!("Handling swap event: {:#?}", event);
     context.app_state.async_runtime.block_on(async {
         add_to_database(
             &context.app_state.transaction,

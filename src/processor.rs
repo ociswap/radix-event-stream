@@ -1,8 +1,3 @@
-use std::thread::sleep;
-
-use log::{error, info, warn};
-use radix_engine_toolkit::schema_visitor::core::error;
-
 use crate::{
     error::{EventHandlerError, TransactionHandlerError},
     event_handler::{EventHandlerContext, HandlerRegistry},
@@ -11,6 +6,8 @@ use crate::{
     transaction_handler::{TransactionHandler, TransactionHandlerContext},
 };
 use colored::Colorize;
+use log::{error, info, warn};
+use std::thread::sleep;
 
 /// Uses a `TransactionStream` to process transactions and
 /// events using a `HandlerRegistry`. Register event handlers
@@ -34,6 +31,9 @@ where
     STREAM: TransactionStream,
     STATE: Clone,
 {
+    /// Creates a new `TransactionStreamProcessor` with the given
+    /// `TransactionStream`, `HandlerRegistry`, `TransactionHandler`
+    /// and initial `STATE`.
     pub fn new(
         transaction_stream: STREAM,
         handler_registry: HandlerRegistry<STATE>,
@@ -48,7 +48,9 @@ where
         }
     }
 
+    /// Starts processing transactions from the `TransactionStream`.
     pub fn run(&mut self) {
+        // Keep processing in an infinite loop.
         loop {
             let transactions = match self.transaction_stream.next() {
                 Err(error) => match error {
@@ -66,7 +68,7 @@ where
                         return;
                     }
                     TransactionStreamError::Error(error) => {
-                        warn!("Error while getting transactions: {}", error);
+                        error!("Error while getting transactions: {}", error);
                         std::thread::sleep(std::time::Duration::from_secs(1));
                         continue;
                     }
@@ -74,19 +76,25 @@ where
                 Ok(transactions) => transactions,
             };
 
+            // Process each transaction.
             for transaction in transactions.iter() {
+                // Find out if there are any events inside this transaction
+                // that have a handler registered.
                 let handler_exists = transaction.events.iter().any(|event| {
                     self.handler_registry
-                        .handlers
-                        .get(&(
-                            event.emitter.address().to_string(),
-                            event.name.clone(),
-                        ))
+                        .get_handler(event.emitter.address(), &event.name)
                         .is_some()
                 });
                 if !handler_exists {
+                    // If there are no handlers for any of the events in this transaction,
+                    // we can skip processing it.
                     continue;
                 }
+                info!(
+                    "{}",
+                    "--------------------------------------------------------"
+                        .bright_blue()
+                );
                 info!(
                     "{}",
                     format!(
@@ -98,6 +106,8 @@ where
                     )
                     .bright_green()
                 );
+                // Keep trying to handle the transaction in case
+                // the user requests this through a TransactionHandlerError.
                 while let Err(err) =
                     self.transaction_handler.handle(TransactionHandlerContext {
                         app_state: &mut self.app_state,
@@ -114,7 +124,7 @@ where
                             );
                             info!(
                                 "{}",
-                                format!("RETRYING IN 10 SECONDS\n")
+                                format!("RETRYING TRANSACTION IN 10 SECONDS\n")
                                     .bright_yellow()
                             );
                             sleep(std::time::Duration::from_secs(10));
@@ -144,11 +154,12 @@ where
                         }
                     }
                 }
-                info!("{}", "###### END TRANSACTION ######\n".bright_green());
+                info!("{}", "###### END TRANSACTION ######".bright_green());
             }
         }
     }
 
+    // Shorthand for running the processor with the required parameters.
     pub fn run_with(
         transaction_stream: STREAM,
         handler_registry: HandlerRegistry<STATE>,
@@ -165,6 +176,10 @@ where
     }
 }
 
+/// A simple wrapper around `TransactionStreamProcessor` that uses
+/// a default transaction handler that simply calls `handle_events`
+/// on the transaction. This is useful for simple use cases where
+/// you don't need any custom transaction handling logic.
 pub struct SimpleTransactionStreamProcessor<STREAM, STATE>
 where
     STREAM: TransactionStream,
@@ -212,6 +227,8 @@ where
     }
 }
 
+/// A default transaction handler that simply calls `handle_events`
+/// on the transaction, without any custom logic.
 fn default_transaction_handler<STATE: Clone>(
     context: TransactionHandlerContext<STATE>,
 ) -> Result<(), TransactionHandlerError> {
@@ -224,6 +241,16 @@ fn default_transaction_handler<STATE: Clone>(
 
 #[allow(non_camel_case_types)]
 impl IncomingTransaction {
+    /// Convenience method which iterates over the events in the
+    /// transaction and calls the appropriate event handler
+    /// for events which have a handler
+    /// registered in the `HandlerRegistry`.
+    ///
+    /// When event handlers return an `EventHandlerError::EventRetryError`,
+    /// this method will keep retrying handling the event until it succeeds.
+    /// Please consider that event handlers may be called multiple times
+    /// in this case, so they must be idempotent at least up to the point
+    /// where the error occurred.
     pub fn handle_events<STATE>(
         &self,
         app_state: &mut STATE,
@@ -235,8 +262,7 @@ impl IncomingTransaction {
         for event in self.events.iter() {
             let handler_registry_clone = handler_registry.clone();
             let event_handler = match handler_registry_clone
-                .handlers
-                .get(&(event.emitter.address().to_string(), event.name.clone()))
+                .get_handler(event.emitter.address(), &event.name)
             {
                 Some(handler) => handler,
                 None => continue,

@@ -1,12 +1,11 @@
-use dyn_clone::DynClone;
-
 use crate::{
-    error::{EventHandlerError, TransactionHandlerError},
-    event_handler::HandlerRegistry,
+    error::TransactionHandlerError, event_handler::HandlerRegistry,
     models::IncomingTransaction,
 };
+use dyn_clone::DynClone;
 
 #[allow(non_camel_case_types)]
+/// A trait that abstracts a transaction handler.
 pub trait TransactionHandler<STATE>: DynClone
 where
     STATE: Clone,
@@ -17,7 +16,7 @@ where
     ) -> Result<(), TransactionHandlerError>;
 }
 
-// Implement EventHandler for all functions that have the correct signature F
+/// Implement EventHandler for all functions that have the correct signature F
 impl<STATE, F> TransactionHandler<STATE> for F
 where
     F: Fn(
@@ -44,6 +43,8 @@ where
 }
 
 #[allow(non_camel_case_types)]
+/// A struct that holds the context for a transaction handler,
+/// which is passed to the handler when it is called.
 pub struct TransactionHandlerContext<'a, STATE>
 where
     STATE: Clone,

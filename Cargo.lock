@@ -143,6 +143,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "asynctest"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "tokio",
+]
+
+[[package]]
 name = "atoi"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2052,6 +2060,7 @@ name = "radix-event-stream"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "chrono",
  "colored",
  "config",

@@ -8,6 +8,9 @@ use crate::{
 };
 
 /// A registry that stores event handlers.
+/// each event handler is identified by the emitter and the event name.
+/// As an example, the emitter could be the address of a component ("component_..."), and the
+/// event name could be "SwapEvent".
 #[allow(non_camel_case_types)]
 #[derive(Default, Clone)]
 pub struct HandlerRegistry<STATE>
@@ -37,8 +40,17 @@ where
         self.handlers
             .insert((emitter.to_string(), name.to_string()), Box::new(handler));
     }
+
+    pub fn get_handler(
+        &self,
+        emitter: &str,
+        name: &str,
+    ) -> Option<&Box<dyn EventHandler<STATE>>> {
+        self.handlers.get(&(emitter.to_string(), name.to_string()))
+    }
 }
 
+/// A trait that abstracts an event handler.
 #[allow(non_camel_case_types)]
 pub trait EventHandler<STATE>: DynClone
 where
@@ -76,6 +88,8 @@ where
     }
 }
 
+/// A struct that holds the context for an event handler,
+/// which is passed to the handler when it is called.
 #[allow(non_camel_case_types)]
 pub struct EventHandlerContext<'a, STATE>
 where
