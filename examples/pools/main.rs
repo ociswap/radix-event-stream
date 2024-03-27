@@ -79,10 +79,8 @@ fn main() {
 
         // Commit the database transaction
         context.app_state.async_runtime.block_on(async {
-            // commit the database transaction
             let mut tx_guard = context.app_state.transaction.borrow_mut();
             if let Some(tx) = tx_guard.take() {
-                // Take the transaction out safely
                 tx.commit().await.unwrap();
             }
         });

@@ -6,7 +6,7 @@ use crate::{
     transaction_handler::{TransactionHandler, TransactionHandlerContext},
 };
 use colored::Colorize;
-use log::{error, info, warn};
+use log::{error, info};
 use std::thread::sleep;
 
 /// Uses a `TransactionStream` to process transactions and
