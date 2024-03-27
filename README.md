@@ -211,3 +211,9 @@ TransactionStreamProcessor::run_with(
 ```
 
 There also exists a `SimpleTransactionStreamProcessor`, which does not require a transaction handler. It simply calls the `handle_events` method from the previous step and nothing else.
+
+## Some notes
+
+- Currently, there are some pretty large dependencies like all of Scrypto and radix-engine-common. I should investigate if we can cut down since we don't use all of it.
+
+- I believe there is a bug in the Radix engine toolkit causing my code to break. When I remove the one line which I think is broken, my code works. I've submitted a [pull request](https://github.com/radixdlt/radix-engine-toolkit/pull/110) for them to look at it, but they haven't yet responded.
