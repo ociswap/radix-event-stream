@@ -152,6 +152,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "auto_decode"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -795,15 +804,6 @@ name = "event-listener"
 version = "2.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
-
-[[package]]
-name = "event_handler"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
 
 [[package]]
 name = "fastrand"
@@ -2052,12 +2052,12 @@ name = "radix-event-stream"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "auto_decode",
  "chrono",
  "colored",
  "config",
  "dyn-clone",
  "env_logger",
- "event_handler",
  "log",
  "radix-client",
  "radix-engine-common",

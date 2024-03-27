@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use event_handler::event_handler;
+use auto_decode::auto_decode;
 use radix_engine_common::ScryptoSbor;
 use radix_event_stream::{
     encodings::encode_bech32, error::EventHandlerError,
@@ -50,7 +50,7 @@ pub struct InstantiateEvent {
 }
 
 // Implement the event handler
-#[event_handler]
+#[auto_decode]
 pub fn handle_instantiate_event(
     context: EventHandlerContext<AppState>,
     event: InstantiateEvent,
@@ -99,7 +99,7 @@ pub struct SwapEvent {
     context_fee_lp: Decimal,
 }
 
-#[event_handler]
+#[auto_decode]
 pub fn handle_swap_event(
     context: EventHandlerContext<AppState>,
     event: SwapEvent,
@@ -122,7 +122,7 @@ pub struct ContributionEvent {
     pub pool_units_minted: Decimal,
 }
 
-#[event_handler]
+#[auto_decode]
 pub fn handle_contribution_event(
     context: EventHandlerContext<AppState>,
     event: ContributionEvent,
@@ -144,7 +144,7 @@ pub struct RedemptionEvent {
     pub redeemed_resources: IndexMap<ResourceAddress, Decimal>,
 }
 
-#[event_handler]
+#[auto_decode]
 pub fn handle_redemption_event(
     context: EventHandlerContext<AppState>,
     event: RedemptionEvent,

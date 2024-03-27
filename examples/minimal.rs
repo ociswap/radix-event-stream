@@ -1,4 +1,4 @@
-use ::event_handler::event_handler;
+use ::auto_decode::auto_decode;
 use log::info;
 use radix_engine_common::ScryptoSbor;
 use radix_event_stream::error::EventHandlerError;
@@ -22,7 +22,7 @@ pub struct InstantiateEvent {
     pool_address: ComponentAddress,
 }
 
-#[event_handler]
+#[auto_decode]
 pub fn handle_instantiate_event(
     context: EventHandlerContext<AppState>,
     event: InstantiateEvent,

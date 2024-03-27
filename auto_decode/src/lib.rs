@@ -5,7 +5,7 @@ use quote::quote;
 use syn::{parse_macro_input, FnArg, ItemFn, PatType};
 
 #[proc_macro_attribute]
-pub fn event_handler(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn auto_decode(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut function = parse_macro_input!(item as ItemFn);
 
     // Check if the first argument is of type EventHandlerInput<T>

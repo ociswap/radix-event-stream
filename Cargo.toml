@@ -19,7 +19,7 @@ radix-client = { git = "https://github.com/ociswap/radix-client", branch = "init
     "gateway",
 ] }
 
-event_handler = { path = "./event_handler" }
+auto_decode = { path = "./auto_decode" }
 
 serde_json = "1.0.114"
 config = "0.14.0"

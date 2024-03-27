@@ -1,5 +1,5 @@
 [package]
-name = "event_handler"
+name = "auto_decode"
 version = "0.1.0"
 edition = "2021"
 
