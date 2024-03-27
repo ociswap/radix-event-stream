@@ -131,7 +131,7 @@ handler_registry.add_handler(
 );
 ```
 
-Note that you can also register new handlers inside other handlers. This is necessary when a new component is instantiated, for example.
+Note that you can also register new handlers inside a handler. This is necessary when a new component is instantiated, to register handlers for that component.
 
 ### Step 5: Pick a source.
 
