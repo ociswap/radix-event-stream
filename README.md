@@ -83,14 +83,33 @@ pub fn handle_instantiate_event(
 ) -> Result<(), EventHandlerError> {
     info!(
         "Handling the {}th instantiate event: {:#?}",
-        context.app_state.number, event
+        context.app_state.instantiate_events_seen, event
     );
-    context.app_state.number += 1;
+    context.app_state.instantiate_events_seen += 1;
     Ok(())
 }
 ```
 
 This handler counts the amount of `InstantiateEvents` seen inside an app state variable as we go through the ledger.
+
+It is possible to return errors from the event:
+
+```rust
+pub enum EventHandlerError {
+    /// The event handler encountered an error and
+    /// should be retried directly.
+    /// This shouldn't be propagated up to the transaction handler.
+    EventRetryError(anyhow::Error),
+    /// The event handler encountered an error and
+    /// the whole transaction should be retried.
+    TransactionRetryError(anyhow::Error),
+    /// The event handler encountered an unrecoverable
+    /// error and the process should exit.
+    UnrecoverableError(anyhow::Error),
+}
+```
+
+By returning different errors, you may control how the stream behaves. It can retry handling the current event direectly, retry the whole transaction handler, or exit completely. **Beware:** This could mean your handlers will be called multiple times if an error occurs. When using this option, sure your handlers are somehow idempotent or atomic, so that running them multiple times is fine.
 
 ### Step 4: Register handlers.
 
@@ -112,162 +131,83 @@ handler_registry.add_handler(
 );
 ```
 
+Note that you can also register new handlers inside other handlers. This is necessary when a new component is instantiated, for example.
+
 ### Step 5: Pick a source.
 
+The library holds a few different transaction stream sources out of the box: A Radix Gateway stream and a file stream. It is also quite easy to implement your own custom stream, to allow getting events from a database, for example.
 
-
-
-## How it works
-
-This library defines an `EventHandler` trait, of which implementors allow you to call `handle`
+Let's use the gateway stream:
 
 ```Rust
-pub trait EventHandler<STATE>: DynClone
-where
-    STATE: Clone,
-{
-    fn handle(
-        &self,
-        input: EventHandlerContext<STATE>,
-        event: Vec<u8>,
-    ) -> Result<(), EventHandlerError>;
-}
-```
-
-It has a blanket implementation for all functions which match the following constraints:
-
-```Rust
-impl<STATE, F> EventHandler<STATE> for F
-where
-    // Vec<u8> is an array of bytes, representing binary SBOR events.
-    F: Fn(EventHandlerContext<STATE>, Vec<u8>) -> Result<(), EventHandlerError>
-        + Clone,
-    STATE: Clone,
-{
-    fn handle(
-        &self,
-        input: EventHandlerContext<STATE>,
-        event: Vec<u8>,
-    ) -> Result<(), EventHandlerError> {
-        // Call self with the input to handle()
-        self(input, event)
-    }
-}
-```
-
-We can use this trait to implement event handlers, which can then be registered to a `HandlerRegistry`. The `HandlerRegistry` is passed to a `TransactionStreamProcessor` which
-
-## Usage
-
-Copy-paste your event struct from your smart contract (or import it somehow)
-
-```Rust
-#[derive(ScryptoSbor, Debug, EventName)]
-pub struct InstantiatePool {
-    pool_address: String
-}
-```
-
-Create a new handler struct with the custom state which we need to identify/process the event.
-
-```Rust
-pub struct SimpleEventHandler {
-    package_address: String
-}
-```
-
-Implement `EventHandler` for the `SimpleEventHandler`.
-
-```Rust
-impl EventHandler for SimpleEventHandler {
-    fn identify(
-        &self,
-        event: &Event,
-    ) -> Option<Box<dyn Debug>> {
-        // Early return if the name doesn't match.
-        // We can use the derived EventName trait
-        // to minimize typo errors.
-        if event.name() != SimpleEvent::event_name() {
-            return None;
-        }
-
-        // Check whether the emitter of this event is our package
-        let package_address = match event.emitter() {
-            EventEmitterIdentifier::Function {
-                package_address, ..
-            } => package_address,
-            _ => return None,
-        };
-        if self.package_address != package_address
-        {
-            return None;
-        }
-
-        // Decode and return the decoded struct.
-        // This allows the framework to log it.
-        let decoded =
-            match scrypto_decode::<InstantiateEvent>(&event.binary_sbor_data())
-            {
-                Ok(decoded) => decoded,
-                Err(error) => {
-                    log::error!(
-                        "Failed to decode InstantiateEvent: {:#?}",
-                        error
-                    );
-                    return None;
-                }
-            };
-        Some(Box::new(decoded))
-    }
-    fn process(
-        &self,
-        event: &Event,
-        _: &Transaction,
-    ) -> Result<(), Box<dyn Error>> {
-        // Decode the event again using scrypto_decode
-        let decoded: InstantiateEvent =
-            match scrypto_decode::<InstantiateEvent>(&event.binary_sbor_data())
-            {
-                Ok(decoded) => decoded,
-                Err(error) => {
-                    log::error!(
-                        "Failed to decode InstantiateEvent: {:#?}",
-                        error
-                    );
-                    return Err("Failed to decode InstantiateEvent".into());
-                }
-            };
-        // Do any kind of processing.
-        Ok(())
-    }
-}
-```
-
-Create a new `HandlerRegistry` and register the handler.
-
-```Rust
-let package_address = "package_rdx1p5l6dp3slnh9ycd7gk700czwlck9tujn0zpdnd0efw09n2zdnn0lzx".to_string()
-let mut handler_registry = HandlerRegistry::new();
-handler_registry.add_handler(SimpleEventHandler {
-    package_address,
-});
-```
-
-Initialize some type implementing `TransactionStream`. There is a Gateway stream available out of the box. Then, start the `TransactionStreamProcessor`. That's it!
-
-```Rust
-let stream =
-    GatewayTransactionStream::new(
-        8000000, // State version to start at
-        100 // Items to fetch per page
+    let stream = GatewayTransactionStream::new(
+        1919391, // State version to start at
+        100, // Items per page to request
         "https://mainnet.radixdlt.com".to_string(),
     );
-
-// Start with parameters.
-TransactionStreamProcessor::run_with(
-    stream,
-    handler_registry,
-    // Interval for logging current state version
-    Some(std::time::Duration::from_secs(1)),
-);
 ```
+
+A transaction stream implements the `TransactionStream` trait, which has a next() method. This method returns a new batch of transactions to process. It can also return one of the following errors:
+
+```rust
+pub enum TransactionStreamError {
+    /// The stream is caught up with the latest transactions.
+    /// The processor should wait for new transactions and try again.
+    CaughtUp,
+    /// The stream is finished and there are no more transactions.
+    /// The processor should stop processing transactions.
+    Finished,
+    /// An error occurred while processing the stream.
+    Error(String),
+}
+```
+
+A gateway stream would never return `Finished`, because there will always be new transactions. A file stream would only return `Finished` when there are no more transactions. In that case, the stream would exit.
+
+### Step 6: Define a transaction handler. (Optional)
+
+To make the transaction stream have any kind of sense of ledger transactions, we must implement a custom transaction handler. This will allow us to do transaction-level operations. For example, if we want to store events in a database, and we want to push events to our database per ledger transaction atomically, we might want to use database transactions. Each time we get a transaction from the stream, we should start a database transaction and try to commit it after all the events have been handled. This is what we can do using a custom transaction handler.
+
+A transaction handler takes in a `TransactionHandlerContext` struct, and returns a result with a `TransactionHandlerError`.
+
+```rust
+    fn transaction_handler(
+        context: TransactionHandlerContext<AppState>,
+    ) -> Result<(), TransactionHandlerError> {
+        Ok(())
+    }
+```
+
+The `TransactionHandlerContext` holds a reference to the `IncomingTransaction`. A method called `handle_events` is implemented on this struct. Calling it will iterate through the events inside the transactions and process the events which have handlers registered. It is highly recommended to use this method in your transaction handler. It is possible to implement your own loop, but it is an integral part of the library and also handles the event retry logic and some logging.
+
+```rust
+    fn transaction_handler(
+        context: TransactionHandlerContext<AppState>,
+    ) -> Result<(), TransactionHandlerError> {
+        // Do something before handling events
+        context
+            .transaction
+            .handle_events(context.app_state, context.handler_registry)?;
+        // Do something after handling events
+        Ok(())
+    }
+```
+
+### Step 7: Run the stream processor.
+
+The `TransactionStreamProcessor` is what ties everything together. It is responsible for getting new transactions from the stream we selected, and calling the transaction handler which in turn calls the event handlers.
+
+Use the `run_with` method to start the processor, passing in the components we created and the initial app state.
+
+```rust
+TransactionStreamProcessor::run_with(
+            stream,
+            handler_registry,
+            transaction_handler,
+            AppState {
+                instantiate_events_seen: 0
+            },
+        );
+```
+
+There also exists a `SimpleTransactionStreamProcessor`, which does not require a transaction handler. It simply calls the `handle_events` method from the previous step and nothing else.
