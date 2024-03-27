@@ -60,7 +60,7 @@ Above we see an event definition used in one of Ociswap's Basic pools. It derive
 
 ### Step 2: Define an application state.
 
-It should at least implement Clone. If you need to share this data with other pieces of code you may choose to store items wrapped in Rc, RefCell, Arc, Mutex, etc.
+This will get shared with every transaction handler, and they can update it. It should at least implement Clone. If you need to share this data with other pieces of code you may choose to store items wrapped in Rc, RefCell, Arc, Mutex, etc.
 
 ```rust
 #[derive(Clone)]
