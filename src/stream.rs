@@ -4,7 +4,7 @@ use std::fmt::Debug;
 /// A trait that abstracts a stream of transactions coming
 /// from any source, like a gateway, database, or file.
 pub trait TransactionStream: Debug {
-    fn next(
+    async fn next(
         &mut self,
     ) -> Result<Vec<IncomingTransaction>, TransactionStreamError>;
 }

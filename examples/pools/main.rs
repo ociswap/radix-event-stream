@@ -1,5 +1,6 @@
 pub mod basicv0;
-use crate::basicv0::events::{self, AppState};
+use crate::basicv0::events::{self, AppState, TxCtx};
+use core::panic;
 use log::error;
 use radix_event_stream::error::TransactionHandlerError;
 use radix_event_stream::transaction_handler::TransactionHandlerContext;
@@ -9,6 +10,9 @@ use radix_event_stream::{
 };
 use sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
 use std::cell::RefCell;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::{Arc, Mutex};
 use std::{env, rc::Rc};
 
 fn main() {
@@ -50,7 +54,7 @@ fn main() {
     });
 
     // Create a new handler registry
-    let mut handler_registry: HandlerRegistry<AppState> =
+    let mut handler_registry: HandlerRegistry<AppState, TxCtx> =
         HandlerRegistry::new();
 
     // Add the instantiate event handler to the registry
@@ -59,78 +63,79 @@ fn main() {
         "InstantiateEvent",
         events::handle_instantiate_event,
     );
-
-    // Define a generic handler for transactions,
-    // which the processor will call for each transaction.
     fn transaction_handler(
-        context: TransactionHandlerContext<AppState>,
-    ) -> Result<(), TransactionHandlerError> {
-        // Do something like start a database transaction
-        context.app_state.async_runtime.block_on(async {
+        context: TransactionHandlerContext<'_, AppState, TxCtx>,
+    ) -> Pin<
+        Box<
+            dyn Future<Output = Result<(), TransactionHandlerError>>
+                + Send
+                + '_,
+        >,
+    > {
+        Box::pin(async {
             // start a database transaction
             let tx = context.app_state.pool.begin().await.unwrap();
-            context.app_state.transaction = Rc::new(RefCell::new(Some(tx)));
-        });
+            let tx = TxCtx { tx };
 
-        // Handle the events in the transaction
-        context
-            .transaction
-            .handle_events(context.app_state, context.handler_registry)?;
+            // Handle the events in the transaction
+            context
+                .transaction
+                .handle_events(
+                    context.app_state,
+                    context.handler_registry,
+                    Some(&mut tx),
+                )
+                .await?;
 
-        // Commit the database transaction
-        context.app_state.async_runtime.block_on(async {
-            // commit the database transaction
-            let mut tx_guard = context.app_state.transaction.borrow_mut();
-            if let Some(tx) = tx_guard.take() {
-                // Take the transaction out safely
-                tx.commit().await.unwrap();
-            }
-        });
-        Ok(())
+            // let transaction = {
+            //     // Lock the mutex to get mutable access to the Tx context (if necessary)
+
+            //     // Take the transaction out of the Option, replacing it with None
+            //     // This step assumes `tx` within `TxCtx` is an Option of the transaction type
+            //     if let Some(actual_tx) = tx_lock.take() {
+            //         // Commit the transaction
+            //         // Some(actual_tx.commit().await)
+            //         actual_tx
+            //     } else {
+            //         // Handle case where tx was already taken or doesn't exist
+            //         return Err(TransactionHandlerError::UnrecoverableError(
+            //             anyhow::anyhow!(
+            //                 "Transaction already taken or doesn't exist"
+            //             )
+            //             .into(),
+            //         ));
+            //     }
+            // };
+            tx.tx.commit();
+            // if let Some(tx) = tx_guard() {
+            //     // Take the transaction out safely
+            //     tx.commit().await.unwrap();
+            // }
+
+            Ok(())
+        })
     }
+    // Define a generic handler for transactions,
+    // which the processor will call for each transaction.
 
-    if arg == "file" {
-        // Create a new transaction stream from a file, which the processor will use
-        // as a source of transactions.
-        let stream =
-            radix_event_stream::sources::file::FileTransactionStream::new(
-                "examples/pools/transactions.json".to_string(),
-            );
+    // Create a new transaction stream, which the processor will use
+    // as a source of transactions.
+    let stream = GatewayTransactionStream::new(
+        1919391,
+        100,
+        "https://mainnet.radixdlt.com".to_string(),
+    );
 
-        // Start with parameters.
-        TransactionStreamProcessor::run_with(
-            stream,
-            handler_registry,
-            transaction_handler,
-            AppState {
-                number: 0,
-                async_runtime: Rc::new(runtime),
-                pool: Rc::new(pool),
-                transaction: Rc::new(RefCell::new(None)),
-                network: scrypto::network::NetworkDefinition::mainnet(),
-            },
-        );
-    } else if arg == "gateway" {
-        // Create a new transaction stream, which the processor will use
-        // as a source of transactions.
-        let stream = GatewayTransactionStream::new(
-            1919391,
-            100,
-            "https://mainnet.radixdlt.com".to_string(),
-        );
-
-        // Start with parameters.
-        TransactionStreamProcessor::run_with(
-            stream,
-            handler_registry,
-            transaction_handler,
-            AppState {
-                number: 0,
-                async_runtime: Rc::new(runtime),
-                pool: Rc::new(pool),
-                transaction: Rc::new(RefCell::new(None)),
-                network: scrypto::network::NetworkDefinition::mainnet(),
-            },
-        );
-    }
+    // Start with parameters.
+    TransactionStreamProcessor::run_with(
+        stream,
+        handler_registry,
+        transaction_handler,
+        AppState {
+            number: 0,
+            pool: Arc::new(pool),
+            transaction: Arc::new(Mutex::new(None)),
+            network: scrypto::network::NetworkDefinition::mainnet(),
+        },
+    );
 }

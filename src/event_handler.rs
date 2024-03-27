@@ -1,6 +1,12 @@
+use async_trait::async_trait;
 use dyn_clone::DynClone;
 use scrypto::prelude::*;
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    future::Future,
+    pin::Pin,
+    sync::{Arc, Mutex},
+};
 
 use crate::{
     error::EventHandlerError,
@@ -13,15 +19,16 @@ use crate::{
 /// event name could be "SwapEvent".
 #[allow(non_camel_case_types)]
 #[derive(Default, Clone)]
-pub struct HandlerRegistry<STATE>
+pub struct HandlerRegistry<STATE, TX_CTX>
 where
     STATE: Clone,
 {
-    pub handlers: HashMap<(String, String), Box<dyn EventHandler<STATE>>>,
+    pub handlers:
+        HashMap<(String, String), Box<dyn EventHandler<STATE, TX_CTX>>>,
 }
 
 #[allow(non_camel_case_types)]
-impl<STATE> HandlerRegistry<STATE>
+impl<STATE, TX_CTX> HandlerRegistry<STATE, TX_CTX>
 where
     STATE: Clone,
 {
@@ -35,7 +42,7 @@ where
         &mut self,
         emitter: &str,
         name: &str,
-        handler: impl EventHandler<STATE> + 'static,
+        handler: impl EventHandler<STATE, TX_CTX> + 'static,
     ) {
         self.handlers
             .insert((emitter.to_string(), name.to_string()), Box::new(handler));
@@ -45,41 +52,59 @@ where
         &self,
         emitter: &str,
         name: &str,
-    ) -> Option<&Box<dyn EventHandler<STATE>>> {
+    ) -> Option<&Box<dyn EventHandler<STATE, TX_CTX>>> {
         self.handlers.get(&(emitter.to_string(), name.to_string()))
     }
 }
 
 /// A trait that abstracts an event handler.
 #[allow(non_camel_case_types)]
-pub trait EventHandler<STATE>: DynClone
+#[async_trait]
+pub trait EventHandler<STATE, TX_CTX>: DynClone + Send + Sync
 where
     STATE: Clone,
 {
-    fn handle(
+    async fn handle(
         &self,
-        input: EventHandlerContext<STATE>,
+        input: EventHandlerContext<'_, STATE, TX_CTX>,
         event: Vec<u8>,
+        tx_ctx: Option<&TX_CTX>,
     ) -> Result<(), EventHandlerError>;
 }
 
 // Implement EventHandler for all functions that have the correct signature F
-impl<STATE, F> EventHandler<STATE> for F
+#[async_trait]
+impl<STATE, TX_CTX, F> EventHandler<STATE, TX_CTX> for F
 where
-    F: Fn(EventHandlerContext<STATE>, Vec<u8>) -> Result<(), EventHandlerError>
-        + Clone,
-    STATE: Clone,
+    F: Fn(
+            EventHandlerContext<STATE, TX_CTX>,
+            Vec<u8>,
+            Option<&TX_CTX>,
+        ) -> Pin<
+            Box<
+                dyn Future<Output = Result<(), EventHandlerError>>
+                    + Send
+                    + 'static,
+            >,
+        >
+        + Send
+        + Sync
+        + 'static
+        + DynClone,
+    STATE: Clone + Send + Sync + 'static,
+    TX_CTX: Send + Sync + 'static,
 {
-    fn handle(
+    async fn handle(
         &self,
-        input: EventHandlerContext<STATE>,
+        input: EventHandlerContext<'_, STATE, TX_CTX>,
         event: Vec<u8>,
+        tx_ctx: Option<&TX_CTX>,
     ) -> Result<(), EventHandlerError> {
-        self(input, event)
+        self(input, event, tx_ctx).await
     }
 }
 
-impl<STATE> Clone for Box<dyn EventHandler<STATE>>
+impl<STATE, TX_CTX> Clone for Box<dyn EventHandler<STATE, TX_CTX>>
 where
     STATE: Clone,
 {
@@ -91,12 +116,12 @@ where
 /// A struct that holds the context for an event handler,
 /// which is passed to the handler when it is called.
 #[allow(non_camel_case_types)]
-pub struct EventHandlerContext<'a, STATE>
+pub struct EventHandlerContext<'a, STATE, TX_CTX>
 where
     STATE: Clone,
 {
     pub app_state: &'a mut STATE,
     pub transaction: &'a IncomingTransaction,
     pub event: &'a IncomingEvent,
-    pub handler_registry: &'a mut HandlerRegistry<STATE>,
+    pub handler_registry: &'a Arc<Mutex<HandlerRegistry<STATE, TX_CTX>>>,
 }
