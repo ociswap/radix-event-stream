@@ -106,6 +106,11 @@ where
                     )
                     .bright_green()
                 );
+                info!(
+                    "{}",
+                    "--------------------------------------------------------"
+                        .bright_blue()
+                );
                 // Keep trying to handle the transaction in case
                 // the user requests this through a TransactionHandlerError.
                 while let Err(err) =
