@@ -5,7 +5,7 @@ edition = "2021"
 
 
 [dependencies]
-radix-engine-toolkit = { git = 'https://github.com/Krulknul/radix-engine-toolkit.git', branch = "propose-fix-string-encoding" }
+radix-engine-toolkit = { git = 'https://github.com/Krulknul/radix-engine-toolkit.git', branch = "tempfix" }
 radix-engine-common = { git = "https://github.com/radixdlt/radixdlt-scrypto", rev = "038ddee8b0f57aa90e36375c69946c4eb634efeb", features = [
     "serde",
 ] }
