@@ -2130,7 +2130,7 @@ dependencies = [
 [[package]]
 name = "radix-engine-toolkit"
 version = "1.0.10"
-source = "git+https://github.com/Krulknul/radix-engine-toolkit.git?branch=tempfix#01c2bd5ae330aff9d14a2b5aec206df35d4f2ddc"
+source = "git+https://github.com/Krulknul/radix-engine-toolkit.git?branch=temporary-fix#d1eea200e0028c7a6e56307eb99f5b7c1549403e"
 dependencies = [
  "bech32",
  "cargo_toml",
@@ -2563,7 +2563,7 @@ dependencies = [
 [[package]]
 name = "sbor-json"
 version = "1.0.10"
-source = "git+https://github.com/Krulknul/radix-engine-toolkit.git?branch=tempfix#01c2bd5ae330aff9d14a2b5aec206df35d4f2ddc"
+source = "git+https://github.com/Krulknul/radix-engine-toolkit.git?branch=temporary-fix#d1eea200e0028c7a6e56307eb99f5b7c1549403e"
 dependencies = [
  "bech32",
  "radix-engine-common 1.0.2-dev (git+https://github.com/radixdlt/radixdlt-scrypto?rev=587d5988cd4ca3c5193ddf37027ff4e4ecd637dc)",
