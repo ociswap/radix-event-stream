@@ -1,5 +1,5 @@
 pub mod basicv0;
-use crate::basicv0::events::{self, AppState};
+use crate::basicv0::events::{self, AppState, TxContext};
 use log::error;
 use radix_event_stream::error::TransactionHandlerError;
 use radix_event_stream::transaction_handler::TransactionHandlerContext;
@@ -50,7 +50,7 @@ fn main() {
     });
 
     // Create a new handler registry
-    let mut handler_registry: HandlerRegistry<AppState> =
+    let mut handler_registry: HandlerRegistry<AppState, TxContext> =
         HandlerRegistry::new();
 
     // Add the instantiate event handler to the registry
@@ -63,26 +63,26 @@ fn main() {
     // Define a generic handler for transactions,
     // which the processor will call for each transaction.
     fn transaction_handler(
-        context: TransactionHandlerContext<AppState>,
+        context: TransactionHandlerContext<AppState, TxContext>,
     ) -> Result<(), TransactionHandlerError> {
         // Do something like start a database transaction
-        context.app_state.async_runtime.block_on(async {
-            // start a database transaction
-            let tx = context.app_state.pool.begin().await.unwrap();
-            context.app_state.transaction = Rc::new(RefCell::new(Some(tx)));
-        });
+        let mut transaction_context =
+            context.app_state.async_runtime.block_on(async {
+                // start a database transaction
+                let tx = context.app_state.pool.begin().await.unwrap();
+                TxContext { transaction: tx }
+            });
 
         // Handle the events in the transaction
-        context
-            .transaction
-            .handle_events(context.app_state, context.handler_registry)?;
+        context.transaction.handle_events(
+            context.app_state,
+            context.handler_registry,
+            &mut transaction_context,
+        )?;
 
         // Commit the database transaction
         context.app_state.async_runtime.block_on(async {
-            let mut tx_guard = context.app_state.transaction.borrow_mut();
-            if let Some(tx) = tx_guard.take() {
-                tx.commit().await.unwrap();
-            }
+            transaction_context.transaction.commit().await.unwrap();
         });
         Ok(())
     }
@@ -104,7 +104,6 @@ fn main() {
                 number: 0,
                 async_runtime: Rc::new(runtime),
                 pool: Rc::new(pool),
-                transaction: Rc::new(RefCell::new(None)),
                 network: scrypto::network::NetworkDefinition::mainnet(),
             },
         );
@@ -126,7 +125,6 @@ fn main() {
                 number: 0,
                 async_runtime: Rc::new(runtime),
                 pool: Rc::new(pool),
-                transaction: Rc::new(RefCell::new(None)),
                 network: scrypto::network::NetworkDefinition::mainnet(),
             },
         );

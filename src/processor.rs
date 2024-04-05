@@ -1,6 +1,6 @@
 use crate::{
     error::{EventHandlerError, TransactionHandlerError},
-    event_handler::{EventHandlerContext, HandlerRegistry},
+    event_handler::{self, EventHandlerContext, HandlerRegistry},
     models::IncomingTransaction,
     stream::{TransactionStream, TransactionStreamError},
     transaction_handler::{TransactionHandler, TransactionHandlerContext},
@@ -14,19 +14,21 @@ use std::thread::sleep;
 /// using the `HandlerRegistry` and then call `run` to start
 /// processing transactions.
 #[allow(non_camel_case_types)]
-pub struct TransactionStreamProcessor<STREAM, STATE>
+pub struct TransactionStreamProcessor<STREAM, STATE, TRANSACTION_HANDLE>
 where
     STREAM: TransactionStream,
     STATE: Clone,
 {
     pub transaction_stream: STREAM,
-    pub handler_registry: HandlerRegistry<STATE>,
-    pub transaction_handler: Box<dyn TransactionHandler<STATE>>,
+    pub handler_registry: HandlerRegistry<STATE, TRANSACTION_HANDLE>,
+    pub transaction_handler:
+        Box<dyn TransactionHandler<STATE, TRANSACTION_HANDLE>>,
     pub app_state: STATE,
 }
 
 #[allow(non_camel_case_types)]
-impl<STREAM, STATE> TransactionStreamProcessor<STREAM, STATE>
+impl<STREAM, STATE, TRANSACTION_HANDLE>
+    TransactionStreamProcessor<STREAM, STATE, TRANSACTION_HANDLE>
 where
     STREAM: TransactionStream,
     STATE: Clone,
@@ -36,8 +38,9 @@ where
     /// and initial `STATE`.
     pub fn new(
         transaction_stream: STREAM,
-        handler_registry: HandlerRegistry<STATE>,
-        transaction_handler: impl TransactionHandler<STATE> + 'static,
+        handler_registry: HandlerRegistry<STATE, TRANSACTION_HANDLE>,
+        transaction_handler: impl TransactionHandler<STATE, TRANSACTION_HANDLE>
+            + 'static,
         state: STATE,
     ) -> Self {
         TransactionStreamProcessor {
@@ -168,8 +171,9 @@ where
     // Shorthand for running the processor with the required parameters.
     pub fn run_with(
         transaction_stream: STREAM,
-        handler_registry: HandlerRegistry<STATE>,
-        transaction_handler: impl TransactionHandler<STATE> + 'static,
+        handler_registry: HandlerRegistry<STATE, TRANSACTION_HANDLE>,
+        transaction_handler: impl TransactionHandler<STATE, TRANSACTION_HANDLE>
+            + 'static,
         state: STATE,
     ) {
         let mut processor = TransactionStreamProcessor::new(
@@ -186,12 +190,13 @@ where
 /// a default transaction handler that simply calls `handle_events`
 /// on the transaction. This is useful for simple use cases where
 /// you don't need any custom transaction handling logic.
+#[allow(non_camel_case_types)]
 pub struct SimpleTransactionStreamProcessor<STREAM, STATE>
 where
     STREAM: TransactionStream,
     STATE: Clone,
 {
-    processor: TransactionStreamProcessor<STREAM, STATE>,
+    processor: TransactionStreamProcessor<STREAM, STATE, ()>,
 }
 
 #[allow(non_camel_case_types)]
@@ -202,10 +207,10 @@ where
 {
     pub fn new(
         transaction_stream: STREAM,
-        handler_registry: HandlerRegistry<STATE>,
+        handler_registry: HandlerRegistry<STATE, ()>,
         state: STATE,
     ) -> Self {
-        let processor: TransactionStreamProcessor<STREAM, STATE> =
+        let processor: TransactionStreamProcessor<STREAM, STATE, ()> =
             TransactionStreamProcessor::new(
                 transaction_stream,
                 handler_registry,
@@ -221,7 +226,7 @@ where
 
     pub fn run_with(
         transaction_stream: STREAM,
-        handler_registry: HandlerRegistry<STATE>,
+        handler_registry: HandlerRegistry<STATE, ()>,
         state: STATE,
     ) {
         let mut processor = SimpleTransactionStreamProcessor::new(
@@ -235,12 +240,13 @@ where
 
 /// A default transaction handler that simply calls `handle_events`
 /// on the transaction, without any custom logic.
+#[allow(non_camel_case_types)]
 fn default_transaction_handler<STATE: Clone>(
-    context: TransactionHandlerContext<STATE>,
+    context: TransactionHandlerContext<STATE, ()>,
 ) -> Result<(), TransactionHandlerError> {
     context
         .transaction
-        .handle_events(context.app_state, context.handler_registry)
+        .handle_events(context.app_state, context.handler_registry, &mut ())
         .unwrap();
     Ok(())
 }
@@ -257,23 +263,33 @@ impl IncomingTransaction {
     /// Please consider that event handlers may be called multiple times
     /// in this case, so they must be idempotent at least up to the point
     /// where the error occurred.
-    pub fn handle_events<STATE>(
+    pub fn handle_events<STATE, TRANSACTION_HANDLE>(
         &self,
         app_state: &mut STATE,
-        handler_registry: &mut HandlerRegistry<STATE>,
+        handler_registry: &mut HandlerRegistry<STATE, TRANSACTION_HANDLE>,
+        transaction_handle: &mut TRANSACTION_HANDLE,
     ) -> Result<(), EventHandlerError>
     where
         STATE: Clone,
     {
         for event in self.events.iter() {
-            let handler_registry_clone = handler_registry.clone();
-            let event_handler = match handler_registry_clone
-                .get_handler(event.emitter.address(), &event.name)
-            {
-                Some(handler) => handler,
-                None => continue,
+            // let handler_registry_clone = *handler_registry.clone();
+            // let event_handler = match handler_registry_clone
+            //     .get_handler(event.emitter.address(), &event.name)
+            // {
+            //     Some(handler) => handler,
+            //     None => continue,
+            // };
+            let event_handler = {
+                let handler = match handler_registry
+                    .get_handler(event.emitter.address(), &event.name)
+                {
+                    Some(handler) => handler,
+                    None => continue,
+                };
+                handler
             };
-
+            let event_handler = event_handler.clone();
             info!(
                 "{}",
                 format!("HANDLING EVENT: {}", event.name).bright_yellow()
@@ -284,6 +300,7 @@ impl IncomingTransaction {
                     transaction: self,
                     event,
                     handler_registry,
+                    transaction_handle,
                 },
                 event.binary_sbor_data.clone(),
             ) {

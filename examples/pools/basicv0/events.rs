@@ -20,21 +20,21 @@ pub struct AppState {
     pub number: u64,
     pub async_runtime: Rc<tokio::runtime::Runtime>,
     pub pool: Rc<sqlx::Pool<sqlx::Sqlite>>,
-    pub transaction:
-        Rc<RefCell<Option<sqlx::Transaction<'static, sqlx::Sqlite>>>>,
     pub network: NetworkDefinition,
 }
 
+#[derive(Debug)]
+pub struct TxContext {
+    pub transaction: sqlx::Transaction<'static, sqlx::Sqlite>,
+}
+
 async fn add_to_database(
-    tx: &Rc<RefCell<Option<sqlx::Transaction<'static, Sqlite>>>>,
+    transaction_context: &mut TxContext,
     data: Vec<u8>,
 ) -> Result<(), sqlx::Error> {
-    let mut tx_guard = tx.borrow_mut();
-    let ding = tx_guard.as_mut().unwrap();
-
     sqlx::query("INSERT INTO events (data) VALUES (?)")
         .bind(data)
-        .execute(&mut **ding)
+        .execute(&mut *transaction_context.transaction)
         .await
         .map(|_| ())
 }
@@ -52,7 +52,7 @@ pub struct InstantiateEvent {
 // Implement the event handler
 #[auto_decode]
 pub fn handle_instantiate_event(
-    context: EventHandlerContext<AppState>,
+    context: EventHandlerContext<AppState, TxContext>,
     event: InstantiateEvent,
 ) -> Result<(), EventHandlerError> {
     // Encode the component address as a bech32 string
@@ -69,7 +69,7 @@ pub fn handle_instantiate_event(
 
     context.app_state.async_runtime.block_on(async {
         add_to_database(
-            &context.app_state.transaction,
+            context.transaction_handle,
             context.event.binary_sbor_data.clone(),
         )
         .await
@@ -101,13 +101,13 @@ pub struct SwapEvent {
 
 #[auto_decode]
 pub fn handle_swap_event(
-    context: EventHandlerContext<AppState>,
+    context: EventHandlerContext<AppState, TxContext>,
     event: SwapEvent,
 ) -> Result<(), EventHandlerError> {
     // info!("Handling swap event: {:#?}", event);
     context.app_state.async_runtime.block_on(async {
         add_to_database(
-            &context.app_state.transaction,
+            context.transaction_handle,
             context.event.binary_sbor_data.clone(),
         )
         .await
@@ -124,12 +124,12 @@ pub struct ContributionEvent {
 
 #[auto_decode]
 pub fn handle_contribution_event(
-    context: EventHandlerContext<AppState>,
+    context: EventHandlerContext<AppState, TxContext>,
     event: ContributionEvent,
 ) -> Result<(), EventHandlerError> {
     context.app_state.async_runtime.block_on(async {
         add_to_database(
-            &context.app_state.transaction,
+            context.transaction_handle,
             context.event.binary_sbor_data.clone(),
         )
         .await
@@ -146,12 +146,12 @@ pub struct RedemptionEvent {
 
 #[auto_decode]
 pub fn handle_redemption_event(
-    context: EventHandlerContext<AppState>,
+    context: EventHandlerContext<AppState, TxContext>,
     event: RedemptionEvent,
 ) -> Result<(), EventHandlerError> {
     context.app_state.async_runtime.block_on(async {
         add_to_database(
-            &context.app_state.transaction,
+            context.transaction_handle,
             context.event.binary_sbor_data.clone(),
         )
         .await
