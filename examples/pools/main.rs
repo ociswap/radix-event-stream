@@ -2,6 +2,7 @@ pub mod basicv0;
 use crate::basicv0::definitions::{AppState, TxHandle};
 use crate::basicv0::events;
 use log::error;
+use radix_engine_common::network::NetworkDefinition;
 use radix_event_stream::error::TransactionHandlerError;
 use radix_event_stream::transaction_handler::TransactionHandlerContext;
 use radix_event_stream::{
@@ -104,7 +105,7 @@ fn main() {
                 number: 0,
                 async_runtime: Rc::new(runtime),
                 pool: Rc::new(pool),
-                network: scrypto::network::NetworkDefinition::mainnet(),
+                network: NetworkDefinition::mainnet(),
             },
         );
     } else if arg == "gateway" {
@@ -125,7 +126,7 @@ fn main() {
                 number: 0,
                 async_runtime: Rc::new(runtime),
                 pool: Rc::new(pool),
-                network: scrypto::network::NetworkDefinition::mainnet(),
+                network: NetworkDefinition::mainnet(),
             },
         );
     }

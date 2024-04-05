@@ -2063,7 +2063,6 @@ dependencies = [
  "radix-engine-common",
  "radix-engine-toolkit",
  "sbor",
- "scrypto",
  "serde",
  "serde_json",
  "serde_yaml",

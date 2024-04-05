@@ -1,5 +1,6 @@
-use scrypto::network::NetworkDefinition;
 use std::rc::Rc;
+
+use radix_engine_common::network::NetworkDefinition;
 
 // Define a global state
 #[derive(Debug, Clone)]

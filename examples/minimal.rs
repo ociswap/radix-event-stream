@@ -1,11 +1,13 @@
 use ::auto_decode::auto_decode;
 use log::info;
+use radix_engine_common::math::Decimal;
 use radix_engine_common::ScryptoSbor;
 use radix_event_stream::error::EventHandlerError;
 use radix_event_stream::event_handler::{EventHandlerContext, HandlerRegistry};
 use radix_event_stream::processor::SimpleTransactionStreamProcessor;
 use radix_event_stream::sources::gateway::GatewayTransactionStream;
-use scrypto::prelude::*;
+// use scrypto::prelude::*;
+use radix_engine_common::types::{ComponentAddress, ResourceAddress};
 use std::env;
 
 #[derive(Debug, Clone)]

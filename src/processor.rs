@@ -273,13 +273,6 @@ impl IncomingTransaction {
         STATE: Clone,
     {
         for event in self.events.iter() {
-            // let handler_registry_clone = *handler_registry.clone();
-            // let event_handler = match handler_registry_clone
-            //     .get_handler(event.emitter.address(), &event.name)
-            // {
-            //     Some(handler) => handler,
-            //     None => continue,
-            // };
             let event_handler = {
                 let handler = match handler_registry
                     .get_handler(event.emitter.address(), &event.name)

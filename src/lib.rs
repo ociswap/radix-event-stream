@@ -7,4 +7,4 @@ pub mod sources;
 pub mod stream;
 pub mod transaction_handler;
 pub use auto_decode::auto_decode;
-pub use scrypto::prelude::{scrypto_decode, ScryptoDecode};
+pub use radix_engine_common::data::scrypto::{scrypto_decode, ScryptoDecode};

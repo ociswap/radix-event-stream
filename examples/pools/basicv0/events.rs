@@ -1,15 +1,15 @@
 use super::definitions::*;
 use auto_decode::auto_decode;
-use radix_engine_common::ScryptoSbor;
+use radix_engine_common::{
+    math::Decimal,
+    types::{ComponentAddress, ResourceAddress},
+    ScryptoSbor,
+};
 use radix_event_stream::{
     encodings::encode_bech32, error::EventHandlerError,
     event_handler::EventHandlerContext,
 };
 use sbor::rust::collections::IndexMap;
-use scrypto::{
-    math::Decimal,
-    types::{ComponentAddress, ResourceAddress},
-};
 
 async fn add_to_database(
     transaction_context: &mut TxHandle,
