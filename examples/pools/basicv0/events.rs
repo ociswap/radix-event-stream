@@ -1,5 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
-
+use super::definitions::*;
 use auto_decode::auto_decode;
 use radix_engine_common::ScryptoSbor;
 use radix_event_stream::{
@@ -9,27 +8,11 @@ use radix_event_stream::{
 use sbor::rust::collections::IndexMap;
 use scrypto::{
     math::Decimal,
-    network::NetworkDefinition,
     types::{ComponentAddress, ResourceAddress},
 };
-use sqlx::Sqlite;
-
-// Define a global state
-#[derive(Debug, Clone)]
-pub struct AppState {
-    pub number: u64,
-    pub async_runtime: Rc<tokio::runtime::Runtime>,
-    pub pool: Rc<sqlx::Pool<sqlx::Sqlite>>,
-    pub network: NetworkDefinition,
-}
-
-#[derive(Debug)]
-pub struct TxContext {
-    pub transaction: sqlx::Transaction<'static, sqlx::Sqlite>,
-}
 
 async fn add_to_database(
-    transaction_context: &mut TxContext,
+    transaction_context: &mut TxHandle,
     data: Vec<u8>,
 ) -> Result<(), sqlx::Error> {
     sqlx::query("INSERT INTO events (data) VALUES (?)")
@@ -52,7 +35,7 @@ pub struct InstantiateEvent {
 // Implement the event handler
 #[auto_decode]
 pub fn handle_instantiate_event(
-    context: EventHandlerContext<AppState, TxContext>,
+    context: EventHandlerContext<AppState, TxHandle>,
     event: InstantiateEvent,
 ) -> Result<(), EventHandlerError> {
     // Encode the component address as a bech32 string
@@ -101,7 +84,7 @@ pub struct SwapEvent {
 
 #[auto_decode]
 pub fn handle_swap_event(
-    context: EventHandlerContext<AppState, TxContext>,
+    context: EventHandlerContext<AppState, TxHandle>,
     event: SwapEvent,
 ) -> Result<(), EventHandlerError> {
     // info!("Handling swap event: {:#?}", event);
@@ -124,7 +107,7 @@ pub struct ContributionEvent {
 
 #[auto_decode]
 pub fn handle_contribution_event(
-    context: EventHandlerContext<AppState, TxContext>,
+    context: EventHandlerContext<AppState, TxHandle>,
     event: ContributionEvent,
 ) -> Result<(), EventHandlerError> {
     context.app_state.async_runtime.block_on(async {
@@ -146,7 +129,7 @@ pub struct RedemptionEvent {
 
 #[auto_decode]
 pub fn handle_redemption_event(
-    context: EventHandlerContext<AppState, TxContext>,
+    context: EventHandlerContext<AppState, TxHandle>,
     event: RedemptionEvent,
 ) -> Result<(), EventHandlerError> {
     context.app_state.async_runtime.block_on(async {

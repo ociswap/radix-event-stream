@@ -1,5 +1,6 @@
 pub mod basicv0;
-use crate::basicv0::events::{self, AppState, TxContext};
+use crate::basicv0::definitions::{AppState, TxHandle};
+use crate::basicv0::events;
 use log::error;
 use radix_event_stream::error::TransactionHandlerError;
 use radix_event_stream::transaction_handler::TransactionHandlerContext;
@@ -8,7 +9,6 @@ use radix_event_stream::{
     sources::gateway::GatewayTransactionStream,
 };
 use sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
-use std::cell::RefCell;
 use std::{env, rc::Rc};
 
 fn main() {
@@ -50,7 +50,7 @@ fn main() {
     });
 
     // Create a new handler registry
-    let mut handler_registry: HandlerRegistry<AppState, TxContext> =
+    let mut handler_registry: HandlerRegistry<AppState, TxHandle> =
         HandlerRegistry::new();
 
     // Add the instantiate event handler to the registry
@@ -63,14 +63,14 @@ fn main() {
     // Define a generic handler for transactions,
     // which the processor will call for each transaction.
     fn transaction_handler(
-        context: TransactionHandlerContext<AppState, TxContext>,
+        context: TransactionHandlerContext<AppState, TxHandle>,
     ) -> Result<(), TransactionHandlerError> {
         // Do something like start a database transaction
         let mut transaction_context =
             context.app_state.async_runtime.block_on(async {
                 // start a database transaction
                 let tx = context.app_state.pool.begin().await.unwrap();
-                TxContext { transaction: tx }
+                TxHandle { transaction: tx }
             });
 
         // Handle the events in the transaction
