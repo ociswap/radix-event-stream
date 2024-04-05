@@ -1,6 +1,6 @@
 use crate::{
     error::{EventHandlerError, TransactionHandlerError},
-    event_handler::{self, EventHandlerContext, HandlerRegistry},
+    event_handler::{EventHandlerContext, HandlerRegistry},
     models::IncomingTransaction,
     stream::{TransactionStream, TransactionStreamError},
     transaction_handler::{TransactionHandler, TransactionHandlerContext},

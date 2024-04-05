@@ -7,12 +7,6 @@ use radix_engine_toolkit::functions::scrypto_sbor::{
     encode_string_representation, ScryptoSborError, StringRepresentation,
 };
 
-// use scrypto::{
-//     address::{AddressBech32EncodeError, AddressBech32Encoder},
-//     data::scrypto::{scrypto_decode, ScryptoDecode},
-//     network::NetworkDefinition,
-// };
-
 /// Decode a serde json value containing programmatic json
 /// into a type that implements the `ScryptoDecode` trait.
 #[allow(clippy::redundant_closure)]
