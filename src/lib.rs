@@ -6,5 +6,6 @@ pub mod processor;
 pub mod sources;
 pub mod stream;
 pub mod transaction_handler;
+pub use anyhow::anyhow;
 pub use auto_decode::auto_decode;
 pub use radix_engine_common::data::scrypto::{scrypto_decode, ScryptoDecode};

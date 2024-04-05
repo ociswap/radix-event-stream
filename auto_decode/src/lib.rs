@@ -47,7 +47,9 @@ pub fn auto_decode(_attr: TokenStream, item: TokenStream) -> TokenStream {
         fn assert_decodable<T: radix_event_stream::ScryptoDecode>() {}
         assert_decodable::<#second_arg_type>();
 
-        let event = radix_event_stream::scrypto_decode::<#second_arg_type>(&event).unwrap();
+        let event = radix_event_stream::scrypto_decode::<#second_arg_type>(&event).map_err(|e| {
+            radix_event_stream::error::EventHandlerError::UnrecoverableError(radix_event_stream::anyhow!("Failed to decode event: {:?}", e))
+        })?;
         #original_body
     });
 
