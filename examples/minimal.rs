@@ -1,9 +1,8 @@
-use ::auto_decode::auto_decode;
+use handler_macro::event_handler;
 use log::info;
 use radix_engine_common::math::Decimal;
 use radix_engine_common::ScryptoSbor;
-use radix_event_stream::error::EventHandlerError;
-use radix_event_stream::event_handler::{EventHandlerContext, HandlerRegistry};
+use radix_event_stream::event_handler::HandlerRegistry;
 use radix_event_stream::processor::SimpleTransactionStreamProcessor;
 use radix_event_stream::sources::gateway::GatewayTransactionStream;
 // use scrypto::prelude::*;
@@ -24,7 +23,7 @@ pub struct InstantiateEvent {
     pool_address: ComponentAddress,
 }
 
-#[auto_decode]
+#[event_handler]
 pub fn handle_instantiate_event(
     context: EventHandlerContext<AppState>,
     event: InstantiateEvent,
@@ -37,7 +36,8 @@ pub fn handle_instantiate_event(
     Ok(())
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     env::set_var("RUST_LOG", "info");
     env_logger::init();
 
@@ -65,5 +65,7 @@ fn main() {
         stream,
         handler_registry,
         AppState { number: 1 },
-    );
+    )
+    .await
+    .unwrap();
 }

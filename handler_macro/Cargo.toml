@@ -1,5 +1,5 @@
 [package]
-name = "auto_decode"
+name = "handler_macro"
 version = "0.1.0"
 edition = "2021"
 

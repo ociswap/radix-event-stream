@@ -152,15 +152,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "auto_decode"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "autocfg"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1003,6 +994,15 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+]
+
+[[package]]
+name = "handler_macro"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -2053,12 +2053,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "auto_decode",
  "chrono",
  "colored",
  "config",
  "dyn-clone",
  "env_logger",
+ "handler_macro",
  "log",
  "radix-client",
  "radix-engine-common",

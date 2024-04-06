@@ -1,16 +1,11 @@
 use super::definitions::*;
-use auto_decode::auto_decode;
+use handler_macro::event_handler;
 use radix_engine_common::{
     math::Decimal,
     types::{ComponentAddress, ResourceAddress},
     ScryptoSbor,
 };
-use radix_event_stream::{
-    encodings::encode_bech32,
-    error::EventHandlerError,
-    event_handler::{EventHandler, EventHandlerContext},
-    scrypto_decode,
-};
+use radix_event_stream::{encodings::encode_bech32, error::EventHandlerError};
 use sbor::rust::collections::IndexMap;
 
 async fn add_to_database(
@@ -34,7 +29,7 @@ pub struct InstantiateEvent {
     pool_address: ComponentAddress,
 }
 
-#[auto_decode]
+#[event_handler]
 async fn handle_instantiate_event(
     context: EventHandlerContext<AppState, TxHandle>,
     event: InstantiateEvent,
@@ -79,7 +74,7 @@ pub struct SwapEvent {
     context_fee_lp: Decimal,
 }
 
-#[auto_decode]
+#[event_handler]
 pub async fn handle_swap_event(
     context: EventHandlerContext<AppState, TxHandle>,
     event: SwapEvent,
@@ -100,7 +95,7 @@ pub struct ContributionEvent {
     pub pool_units_minted: Decimal,
 }
 
-#[auto_decode]
+#[event_handler]
 pub async fn handle_contribution_event(
     context: EventHandlerContext<AppState, TxHandle>,
     event: ContributionEvent,
@@ -120,7 +115,7 @@ pub struct RedemptionEvent {
     pub redeemed_resources: IndexMap<ResourceAddress, Decimal>,
 }
 
-#[auto_decode]
+#[event_handler]
 pub async fn handle_redemption_event(
     context: EventHandlerContext<AppState, TxHandle>,
     event: RedemptionEvent,

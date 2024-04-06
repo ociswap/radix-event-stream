@@ -1,14 +1,10 @@
 pub mod basicv0;
 use crate::basicv0::definitions::{AppState, TxHandle};
 use crate::basicv0::events;
-use auto_decode::auto_transaction_handler;
+use handler_macro::transaction_handler;
 use log::error;
 use radix_engine_common::network::NetworkDefinition;
-use radix_event_stream::error::TransactionHandlerError;
 use radix_event_stream::sources::file::FileTransactionStream;
-use radix_event_stream::transaction_handler::{
-    TransactionHandler, TransactionHandlerContext,
-};
 use radix_event_stream::{
     event_handler::HandlerRegistry, processor::TransactionStreamProcessor,
     sources::gateway::GatewayTransactionStream,
@@ -61,7 +57,7 @@ async fn main() {
         events::handle_instantiate_event,
     );
 
-    #[auto_transaction_handler]
+    #[transaction_handler]
     async fn transaction_handler(
         context: TransactionHandlerContext<AppState, TxHandle>,
     ) -> Result<(), TransactionHandlerError> {
