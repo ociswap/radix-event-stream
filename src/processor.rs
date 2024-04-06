@@ -8,7 +8,6 @@ use crate::{
     stream::{TransactionStream, TransactionStreamError},
     transaction_handler::{TransactionHandler, TransactionHandlerContext},
 };
-
 use async_trait::async_trait;
 use colored::Colorize;
 use log::{error, info};

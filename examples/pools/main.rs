@@ -109,7 +109,6 @@ async fn main() {
         );
 
         // Start with parameters.
-        // Start with parameters.
         TransactionStreamProcessor::run_with(
             stream,
             handler_registry,
