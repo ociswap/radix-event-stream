@@ -63,16 +63,30 @@ async fn main() {
         "https://mainnet.radixdlt.com".to_string(),
     );
 
+    // creating a new channel stream, which gives back a sender side.
     let (channel_stream, sender) = ChannelTransactionStream::new();
 
+    // Create a new task which will push transactions to the channel stream in batches, to simulate
+    // something like a testing environment.
     tokio::task::spawn(async move {
-        loop {
+        let mut transactions = Vec::new();
+        // first get 10 batches of 100 transactions
+        for _ in 0..10 {
             let next = transaction_stream.next().await.unwrap();
             for transaction in next {
-                sender.send(transaction).await.unwrap();
+                transactions.push(transaction);
             }
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
+        // then push a batch every 2 seconds
+        for _ in 0..10 {
+            println!("Pushing 100 more transactions in 2 seconds...");
+            tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
+            for _ in 0..100 {
+                sender.send(transactions.pop().unwrap()).await.unwrap();
+            }
+        }
+        // When this task ends, the channel will be closed and the processor will finish.
     });
 
     // Start with parameters.
