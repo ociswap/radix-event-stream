@@ -1,5 +1,6 @@
 use std::{fs::File, path::Path};
 
+use async_trait::async_trait;
 use serde::Deserialize;
 
 use crate::{
@@ -55,8 +56,9 @@ impl FileTransactionStream {
     }
 }
 
+#[async_trait]
 impl TransactionStream for FileTransactionStream {
-    fn next(
+    async fn next(
         &mut self,
     ) -> Result<Vec<IncomingTransaction>, TransactionStreamError> {
         if self.transactions.is_empty() {

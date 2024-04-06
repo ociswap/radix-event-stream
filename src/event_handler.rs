@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use dyn_clone::DynClone;
 // use scrypto::prelude::*;
 use std::collections::HashMap;
@@ -55,35 +56,17 @@ where
 
 /// A trait that abstracts an event handler.
 #[allow(non_camel_case_types)]
-pub trait EventHandler<STATE, TRANSACTION_HANDLE>: DynClone
+#[async_trait]
+pub trait EventHandler<STATE, TRANSACTION_HANDLE>:
+    DynClone + Send + Sync
 where
     STATE: Clone,
 {
-    fn handle(
+    async fn handle(
         &self,
-        input: EventHandlerContext<STATE, TRANSACTION_HANDLE>,
+        input: EventHandlerContext<'_, STATE, TRANSACTION_HANDLE>,
         event: Vec<u8>,
     ) -> Result<(), EventHandlerError>;
-}
-
-// Implement EventHandler for all functions that have the correct signature F
-#[allow(non_camel_case_types)]
-impl<STATE, TRANSACTION_HANDLE, F> EventHandler<STATE, TRANSACTION_HANDLE> for F
-where
-    F: Fn(
-            EventHandlerContext<STATE, TRANSACTION_HANDLE>,
-            Vec<u8>,
-        ) -> Result<(), EventHandlerError>
-        + Clone,
-    STATE: Clone,
-{
-    fn handle(
-        &self,
-        input: EventHandlerContext<STATE, TRANSACTION_HANDLE>,
-        event: Vec<u8>,
-    ) -> Result<(), EventHandlerError> {
-        self(input, event)
-    }
 }
 
 #[allow(non_camel_case_types)]

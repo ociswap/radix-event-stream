@@ -46,3 +46,10 @@ impl From<EventHandlerError> for TransactionHandlerError {
         }
     }
 }
+
+#[derive(Debug)]
+pub enum TransactionStreamProcessorError {
+    /// The transaction stream processor encountered an unrecoverable
+    /// error and the process should exit.
+    UnrecoverableError(anyhow::Error),
+}

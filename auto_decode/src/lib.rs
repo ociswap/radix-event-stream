@@ -1,57 +1,145 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use quote::quote;
-use syn::{parse_macro_input, FnArg, ItemFn, PatType};
-
+use quote::{format_ident, quote};
+use syn::{
+    parse_macro_input, punctuated::Punctuated, token::Comma, FnArg,
+    GenericParam, ItemFn, PathArguments, Type,
+};
 #[proc_macro_attribute]
 pub fn auto_decode(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let mut function = parse_macro_input!(item as ItemFn);
+    let input_fn = parse_macro_input!(item as ItemFn);
 
-    // Check if the first argument is of type EventHandlerInput<T>
-    let is_first_arg_event_handler_input =
-        if let Some(FnArg::Typed(PatType { ty, .. })) =
-            function.sig.inputs.iter().nth(0)
-        {
-            // Here, we need to check if `ty` is EventHandlerInput<T>. This is a bit tricky because `ty` is a `Type`,
-            // and we need to match it against a specific path (i.e., EventHandlerInput<T>).
-            // One approach is to convert `ty` to a string and check if it contains "EventHandlerInput".
-            // Note: This is a simplistic approach and might not work in all cases, especially with complex type paths or generics.
-            let ty_string = quote!(#ty).to_string();
-            ty_string.starts_with("EventHandlerContext")
-        } else {
-            false
-        };
+    // Extract function name to use for the struct and impl
+    let fn_name = &input_fn.sig.ident;
+    let struct_name = fn_name;
 
-    if !is_first_arg_event_handler_input {
-        panic!(
-            "Expected the first argument to be of type EventHandlerContext<T>"
-        );
-    }
-
-    // Extract and modify the second argument as before
-    let second_arg_type = if let Some(FnArg::Typed(PatType { ty, .. })) =
-        function.sig.inputs.iter().nth(1)
+    // Assuming the function signature follows a specific pattern, we need to extract
+    // the generic types from the first argument (context). This example assumes that
+    // EventHandlerContext is always the first argument and that it carries two generic types.
+    let context_arg = match input_fn
+        .sig
+        .inputs
+        .first()
+        .expect("Expected at least one argument")
     {
-        ty.as_ref().clone()
-    } else {
-        panic!("Expected the second argument to be a typed argument");
+        FnArg::Typed(pat_type) => &*pat_type.ty,
+        _ => panic!("Expected a typed argument"),
     };
 
-    if let Some(second_arg) = function.sig.inputs.iter_mut().nth(1) {
-        *second_arg = syn::parse_quote!(event: Vec<u8>);
-    }
+    // Extract the EventHandlerContext's generic types
+    let generics = if let Type::Path(type_path) = context_arg {
+        // This assumes the path's last segment is `EventHandlerContext` and has arguments.
+        let args = &type_path
+            .path
+            .segments
+            .last()
+            .expect("Expected a type segment")
+            .arguments;
+        if let syn::PathArguments::AngleBracketed(args) = args {
+            args.args.iter().collect::<Vec<_>>()
+        } else {
+            panic!("Expected generic arguments in EventHandlerContext");
+        }
+    } else {
+        panic!("Expected EventHandlerContext to be a type path");
+    };
 
-    let original_body = function.block;
-    function.block = syn::parse_quote!({
-        fn assert_decodable<T: radix_event_stream::ScryptoDecode>() {}
-        assert_decodable::<#second_arg_type>();
+    // The event type is expected to be the second argument of the function.
+    let event_type = match input_fn
+        .sig
+        .inputs
+        .iter()
+        .nth(1)
+        .expect("Expected at least two arguments")
+    {
+        FnArg::Typed(pat_type) => &*pat_type.ty,
+        _ => panic!("Expected the second argument to be typed"),
+    };
 
-        let event = radix_event_stream::scrypto_decode::<#second_arg_type>(&event).map_err(|e| {
-            radix_event_stream::error::EventHandlerError::UnrecoverableError(radix_event_stream::anyhow!("Failed to decode event: {:?}", e))
-        })?;
-        #original_body
-    });
+    let function_body = &input_fn.block;
 
-    TokenStream::from(quote!(#function))
+    // Generate the struct and impl using the extracted information.
+    let expanded = quote! {
+        #[derive(Clone)]
+        #[allow(non_camel_case_types)]
+        pub struct #struct_name;
+
+        #[::async_trait::async_trait]
+        impl EventHandler<#(#generics),*> for #struct_name {
+            async fn handle(
+                &self,
+                context: EventHandlerContext<'_, #(#generics),*>,
+                event: Vec<u8>,
+            ) -> Result<(), EventHandlerError> {
+                let event: #event_type = scrypto_decode(&event).unwrap();
+                #function_body
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
+#[proc_macro_attribute]
+pub fn auto_transaction_handler(
+    _attr: TokenStream,
+    item: TokenStream,
+) -> TokenStream {
+    let input_fn = parse_macro_input!(item as ItemFn);
+
+    // Extract function name to use for the struct and impl
+    let fn_name = &input_fn.sig.ident;
+    let struct_name = fn_name;
+
+    // Assuming the function signature follows a specific pattern, we need to extract
+    // the generic types from the context argument. This example assumes that
+    // TransactionHandlerContext is the first argument and that it carries two generic types.
+    let context_arg = match input_fn
+        .sig
+        .inputs
+        .first()
+        .expect("Expected at least one argument")
+    {
+        FnArg::Typed(pat_type) => &*pat_type.ty,
+        _ => panic!("Expected a typed argument"),
+    };
+
+    // Extract the TransactionHandlerContext's generic types
+    let generics = if let Type::Path(type_path) = context_arg {
+        let args = &type_path
+            .path
+            .segments
+            .last()
+            .expect("Expected a type segment")
+            .arguments;
+        if let syn::PathArguments::AngleBracketed(args) = args {
+            args.args.iter().collect::<Vec<_>>()
+        } else {
+            panic!("Expected generic arguments in TransactionHandlerContext");
+        }
+    } else {
+        panic!("Expected TransactionHandlerContext to be a type path");
+    };
+
+    let function_body = &input_fn.block;
+
+    // Generate the struct and impl using the extracted information.
+    let expanded = quote! {
+        #[derive(Clone)]
+        #[allow(non_camel_case_types)]
+        struct #struct_name;
+
+        #[::async_trait::async_trait]
+        impl TransactionHandler<#(#generics),*> for #struct_name {
+            async fn handle(
+                &self,
+                context: TransactionHandlerContext<'_, #(#generics),*>,
+            ) -> Result<(), TransactionHandlerError> {
+                #function_body
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
 }

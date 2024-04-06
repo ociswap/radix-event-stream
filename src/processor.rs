@@ -1,10 +1,15 @@
 use crate::{
-    error::{EventHandlerError, TransactionHandlerError},
+    error::{
+        EventHandlerError, TransactionHandlerError,
+        TransactionStreamProcessorError,
+    },
     event_handler::{EventHandlerContext, HandlerRegistry},
     models::IncomingTransaction,
     stream::{TransactionStream, TransactionStreamError},
     transaction_handler::{TransactionHandler, TransactionHandlerContext},
 };
+
+use async_trait::async_trait;
 use colored::Colorize;
 use log::{error, info};
 use std::thread::sleep;
@@ -52,10 +57,10 @@ where
     }
 
     /// Starts processing transactions from the `TransactionStream`.
-    pub fn run(&mut self) {
+    pub async fn run(&mut self) -> Result<(), TransactionStreamProcessorError> {
         // Keep processing in an infinite loop.
         loop {
-            let transactions = match self.transaction_stream.next() {
+            let transactions = match self.transaction_stream.next().await {
                 Err(error) => match error {
                     TransactionStreamError::CaughtUp => {
                         info!("No more transactions, sleeping for 1 second...");
@@ -68,7 +73,7 @@ where
                             format!("Finished processing transactions")
                                 .bright_red()
                         );
-                        return;
+                        return Ok(());
                     }
                     TransactionStreamError::Error(error) => {
                         error!("Error while getting transactions: {}", error);
@@ -105,19 +110,21 @@ where
                         transaction.state_version,
                         transaction.confirmed_at
                             .expect("When handling a transaction it should always have a timestamp")
-                            .to_rfc3339()
+                            .format("%a %d-%m-%Y %H:%M").to_string()
                     )
                     .bright_green()
                 );
 
                 // Keep trying to handle the transaction in case
                 // the user requests this through a TransactionHandlerError.
-                while let Err(err) =
-                    self.transaction_handler.handle(TransactionHandlerContext {
+                while let Err(err) = self
+                    .transaction_handler
+                    .handle(TransactionHandlerContext {
                         app_state: &mut self.app_state,
                         transaction,
                         handler_registry: &mut self.handler_registry,
                     })
+                    .await
                 {
                     match err {
                         TransactionHandlerError::TransactionRetryError(e) => {
@@ -154,7 +161,9 @@ where
                                 )
                                 .bright_red()
                             );
-                            std::process::exit(1);
+                            return Err(TransactionStreamProcessorError::UnrecoverableError(
+                                err,
+                            ));
                         }
                     }
                 }
@@ -169,20 +178,20 @@ where
     }
 
     // Shorthand for running the processor with the required parameters.
-    pub fn run_with(
+    pub async fn run_with(
         transaction_stream: STREAM,
         handler_registry: HandlerRegistry<STATE, TRANSACTION_HANDLE>,
         transaction_handler: impl TransactionHandler<STATE, TRANSACTION_HANDLE>
             + 'static,
         state: STATE,
-    ) {
+    ) -> Result<(), TransactionStreamProcessorError> {
         let mut processor = TransactionStreamProcessor::new(
             transaction_stream,
             handler_registry,
             transaction_handler,
             state,
         );
-        processor.run();
+        processor.run().await
     }
 }
 
@@ -203,7 +212,7 @@ where
 impl<STREAM, STATE> SimpleTransactionStreamProcessor<STREAM, STATE>
 where
     STREAM: TransactionStream,
-    STATE: Clone + 'static,
+    STATE: Clone + 'static + Send + Sync,
 {
     pub fn new(
         transaction_stream: STREAM,
@@ -214,41 +223,51 @@ where
             TransactionStreamProcessor::new(
                 transaction_stream,
                 handler_registry,
-                default_transaction_handler,
+                DefaultTransactionHandler {},
                 state,
             );
         SimpleTransactionStreamProcessor { processor }
     }
 
-    pub fn run(&mut self) {
-        self.processor.run();
+    pub async fn run(&mut self) -> Result<(), TransactionStreamProcessorError> {
+        self.processor.run().await
     }
 
-    pub fn run_with(
+    pub async fn run_with(
         transaction_stream: STREAM,
         handler_registry: HandlerRegistry<STATE, ()>,
         state: STATE,
-    ) {
+    ) -> Result<(), TransactionStreamProcessorError> {
         let mut processor = SimpleTransactionStreamProcessor::new(
             transaction_stream,
             handler_registry,
             state,
         );
-        processor.run();
+        processor.run().await
     }
 }
 
 /// A default transaction handler that simply calls `handle_events`
 /// on the transaction, without any custom logic.
-#[allow(non_camel_case_types)]
-fn default_transaction_handler<STATE: Clone>(
-    context: TransactionHandlerContext<STATE, ()>,
-) -> Result<(), TransactionHandlerError> {
-    context
-        .transaction
-        .handle_events(context.app_state, context.handler_registry, &mut ())
-        .unwrap();
-    Ok(())
+#[derive(Clone)]
+struct DefaultTransactionHandler;
+
+#[async_trait]
+impl<STATE> TransactionHandler<STATE, ()> for DefaultTransactionHandler
+where
+    STATE: Clone + Send + Sync,
+{
+    async fn handle(
+        &self,
+        input: TransactionHandlerContext<'_, STATE, ()>,
+    ) -> Result<(), TransactionHandlerError> {
+        input
+            .transaction
+            .handle_events(input.app_state, input.handler_registry, &mut ())
+            .await
+            .unwrap();
+        Ok(())
+    }
 }
 
 #[allow(non_camel_case_types)]
@@ -263,7 +282,7 @@ impl IncomingTransaction {
     /// Please consider that event handlers may be called multiple times
     /// in this case, so they must be idempotent at least up to the point
     /// where the error occurred.
-    pub fn handle_events<STATE, TRANSACTION_HANDLE>(
+    pub async fn handle_events<STATE, TRANSACTION_HANDLE>(
         &self,
         app_state: &mut STATE,
         handler_registry: &mut HandlerRegistry<STATE, TRANSACTION_HANDLE>,
@@ -287,16 +306,19 @@ impl IncomingTransaction {
                 "{}",
                 format!("HANDLING EVENT: {}", event.name).bright_yellow()
             );
-            while let Err(err) = event_handler.handle(
-                EventHandlerContext {
-                    app_state,
-                    transaction: self,
-                    event,
-                    handler_registry,
-                    transaction_handle,
-                },
-                event.binary_sbor_data.clone(),
-            ) {
+            while let Err(err) = event_handler
+                .handle(
+                    EventHandlerContext {
+                        app_state,
+                        transaction: self,
+                        event,
+                        handler_registry,
+                        transaction_handle,
+                    },
+                    event.binary_sbor_data.clone(),
+                )
+                .await
+            {
                 match err {
                     EventHandlerError::EventRetryError(e) => {
                         error!(

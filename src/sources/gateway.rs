@@ -4,6 +4,7 @@ use crate::{
     stream::{TransactionStream, TransactionStreamError},
 };
 
+use async_trait::async_trait;
 use radix_client::{
     gateway::{
         models::{
@@ -11,9 +12,9 @@ use radix_client::{
             LedgerStateSelector, Order, TransactionKindFilter,
             TransactionStreamOptIns, TransactionStreamRequestBody,
         },
-        stream::TransactionStreamBlocking,
+        stream::TransactionStreamAsync,
     },
-    GatewayClientBlocking,
+    GatewayClientAsync,
 };
 
 impl Into<IncomingEvent> for radix_client::gateway::models::Event {
@@ -59,7 +60,7 @@ impl Into<IncomingTransaction> for CommittedTransactionInfo {
 }
 #[derive(Debug)]
 pub struct GatewayTransactionStream {
-    stream: TransactionStreamBlocking,
+    stream: TransactionStreamAsync,
 }
 impl GatewayTransactionStream {
     pub fn new(
@@ -67,7 +68,7 @@ impl GatewayTransactionStream {
         limit_per_page: u32,
         gateway_url: String,
     ) -> Self {
-        let client = GatewayClientBlocking::new(gateway_url);
+        let client = GatewayClientAsync::new(gateway_url);
         let stream =
             client.new_transaction_stream(TransactionStreamRequestBody {
                 from_ledger_state: Some(LedgerStateSelector {
@@ -88,11 +89,12 @@ impl GatewayTransactionStream {
     }
 }
 
+#[async_trait]
 impl TransactionStream for GatewayTransactionStream {
-    fn next(
+    async fn next(
         &mut self,
     ) -> Result<Vec<IncomingTransaction>, TransactionStreamError> {
-        let response = self.stream.next().map_err(|err| {
+        let response = self.stream.next().await.map_err(|err| {
             TransactionStreamError::Error(format!("{:?}", err))
         })?;
         let boxed: Vec<IncomingTransaction> =

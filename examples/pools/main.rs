@@ -1,18 +1,24 @@
 pub mod basicv0;
 use crate::basicv0::definitions::{AppState, TxHandle};
 use crate::basicv0::events;
+use auto_decode::auto_transaction_handler;
 use log::error;
 use radix_engine_common::network::NetworkDefinition;
 use radix_event_stream::error::TransactionHandlerError;
-use radix_event_stream::transaction_handler::TransactionHandlerContext;
+use radix_event_stream::sources::file::FileTransactionStream;
+use radix_event_stream::transaction_handler::{
+    TransactionHandler, TransactionHandlerContext,
+};
 use radix_event_stream::{
     event_handler::HandlerRegistry, processor::TransactionStreamProcessor,
     sources::gateway::GatewayTransactionStream,
 };
 use sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
-use std::{env, rc::Rc};
+use std::env;
+use std::sync::Arc;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     env::set_var("RUST_LOG", "info");
     env_logger::init();
 
@@ -24,31 +30,25 @@ fn main() {
         }
     };
 
-    // Create a tokio runtime to run async code inside handlers.
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-
     // Create a new database and initialize a simple schema with
     // one table: `events` with "id" and "data" columns as integer and text
     let database_url = "sqlite:examples/pools/basicv0/my_database.db?mode=rwc";
-    let pool = runtime.block_on(async {
-        let pool: Pool<Sqlite> = SqlitePoolOptions::new()
-            .max_connections(5)
-            .connect(database_url)
-            .await
-            .unwrap();
-        sqlx::query(
-            r#"
+    let pool: Pool<Sqlite> = SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect(database_url)
+        .await
+        .unwrap();
+    sqlx::query(
+        r#"
             CREATE TABLE IF NOT EXISTS events (
                 id INTEGER PRIMARY KEY,
                 data BYTES NOT NULL
             )
             "#,
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
-        pool
-    });
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
 
     // Create a new handler registry
     let mut handler_registry: HandlerRegistry<AppState, TxHandle> =
@@ -61,40 +61,34 @@ fn main() {
         events::handle_instantiate_event,
     );
 
-    // Define a generic handler for transactions,
-    // which the processor will call for each transaction.
-    fn transaction_handler(
+    #[auto_transaction_handler]
+    async fn transaction_handler(
         context: TransactionHandlerContext<AppState, TxHandle>,
     ) -> Result<(), TransactionHandlerError> {
-        // Do something like start a database transaction
-        let mut transaction_context =
-            context.app_state.async_runtime.block_on(async {
-                // start a database transaction
-                let tx = context.app_state.pool.begin().await.unwrap();
-                TxHandle { transaction: tx }
-            });
+        let tx = context.app_state.pool.begin().await.unwrap();
+        let mut transaction_context = TxHandle { transaction: tx };
 
         // Handle the events in the transaction
-        context.transaction.handle_events(
-            context.app_state,
-            context.handler_registry,
-            &mut transaction_context,
-        )?;
+        context
+            .transaction
+            .handle_events(
+                context.app_state,
+                context.handler_registry,
+                &mut transaction_context,
+            )
+            .await?;
 
         // Commit the database transaction
-        context.app_state.async_runtime.block_on(async {
-            transaction_context.transaction.commit().await.unwrap();
-        });
+        transaction_context.transaction.commit().await.unwrap();
         Ok(())
     }
 
     if arg == "file" {
         // Create a new transaction stream from a file, which the processor will use
         // as a source of transactions.
-        let stream =
-            radix_event_stream::sources::file::FileTransactionStream::new(
-                "examples/pools/transactions.json".to_string(),
-            );
+        let stream = FileTransactionStream::new(
+            "examples/pools/transactions.json".to_string(),
+        );
 
         // Start with parameters.
         TransactionStreamProcessor::run_with(
@@ -103,11 +97,12 @@ fn main() {
             transaction_handler,
             AppState {
                 number: 0,
-                async_runtime: Rc::new(runtime),
-                pool: Rc::new(pool),
+                pool: Arc::new(pool),
                 network: NetworkDefinition::mainnet(),
             },
-        );
+        )
+        .await
+        .unwrap();
     } else if arg == "gateway" {
         // Create a new transaction stream, which the processor will use
         // as a source of transactions.
@@ -118,16 +113,18 @@ fn main() {
         );
 
         // Start with parameters.
+        // Start with parameters.
         TransactionStreamProcessor::run_with(
             stream,
             handler_registry,
             transaction_handler,
             AppState {
                 number: 0,
-                async_runtime: Rc::new(runtime),
-                pool: Rc::new(pool),
+                pool: Arc::new(pool),
                 network: NetworkDefinition::mainnet(),
             },
-        );
+        )
+        .await
+        .unwrap();
     }
 }

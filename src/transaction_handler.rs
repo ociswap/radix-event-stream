@@ -2,37 +2,20 @@ use crate::{
     error::TransactionHandlerError, event_handler::HandlerRegistry,
     models::IncomingTransaction,
 };
+use async_trait::async_trait;
 use dyn_clone::DynClone;
 
-#[allow(non_camel_case_types)]
 /// A trait that abstracts a transaction handler.
+#[allow(non_camel_case_types)]
+#[async_trait]
 pub trait TransactionHandler<STATE, TRANSACTION_HANDLE>: DynClone
 where
     STATE: Clone,
 {
-    fn handle(
+    async fn handle(
         &self,
-        input: TransactionHandlerContext<STATE, TRANSACTION_HANDLE>,
+        input: TransactionHandlerContext<'_, STATE, TRANSACTION_HANDLE>,
     ) -> Result<(), TransactionHandlerError>;
-}
-
-/// Implement EventHandler for all functions that have the correct signature F
-#[allow(non_camel_case_types)]
-impl<STATE, TRANSACTION_HANDLE, F> TransactionHandler<STATE, TRANSACTION_HANDLE>
-    for F
-where
-    F: Fn(
-            TransactionHandlerContext<STATE, TRANSACTION_HANDLE>,
-        ) -> Result<(), TransactionHandlerError>
-        + Clone,
-    STATE: Clone,
-{
-    fn handle(
-        &self,
-        context: TransactionHandlerContext<STATE, TRANSACTION_HANDLE>,
-    ) -> Result<(), TransactionHandlerError> {
-        self(context)
-    }
 }
 
 #[allow(non_camel_case_types)]

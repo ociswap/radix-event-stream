@@ -2052,6 +2052,7 @@ name = "radix-event-stream"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "auto_decode",
  "chrono",
  "colored",

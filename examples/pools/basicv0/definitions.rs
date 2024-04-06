@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use radix_engine_common::network::NetworkDefinition;
 
@@ -6,8 +6,7 @@ use radix_engine_common::network::NetworkDefinition;
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub number: u64,
-    pub async_runtime: Rc<tokio::runtime::Runtime>,
-    pub pool: Rc<sqlx::Pool<sqlx::Sqlite>>,
+    pub pool: Arc<sqlx::Pool<sqlx::Sqlite>>,
     pub network: NetworkDefinition,
 }
 
