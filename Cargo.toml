@@ -5,6 +5,9 @@ edition = "2021"
 
 
 [dependencies]
+# We link to a temporary RET fix here as there is currently a bug with decoding gateway events.
+# https://discord.com/channels/417762285172555786/765994894749597697/1225814514717560872
+# Should be removed once they release a new version.
 radix-engine-toolkit = { git = 'https://github.com/Krulknul/radix-engine-toolkit.git', branch = "temporary-fix-1.0.5" }
 radix-engine-common = { git = "https://github.com/radixdlt/radixdlt-scrypto", rev = "038ddee8b0f57aa90e36375c69946c4eb634efeb", features = [
     "serde",
