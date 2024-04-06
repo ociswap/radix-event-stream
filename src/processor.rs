@@ -315,8 +315,8 @@ impl IncomingTransaction {
                 .handle(
                     EventHandlerContext {
                         app_state,
-                        transaction: self,
-                        event,
+                        incoming_transaction: self,
+                        incoming_event: event,
                         handler_registry,
                         transaction_handle,
                     },

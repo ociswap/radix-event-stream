@@ -88,8 +88,8 @@ where
     STATE: Clone,
 {
     pub app_state: &'a mut STATE,
-    pub transaction: &'a IncomingTransaction,
+    pub incoming_transaction: &'a IncomingTransaction,
+    pub incoming_event: &'a IncomingEvent,
     pub transaction_handle: &'a mut TRANSACTION_HANDLE,
-    pub event: &'a IncomingEvent,
     pub handler_registry: &'a mut HandlerRegistry<STATE, TRANSACTION_HANDLE>,
 }

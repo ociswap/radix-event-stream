@@ -47,7 +47,7 @@ async fn handle_instantiate_event(
 
     add_to_database(
         context.transaction_handle,
-        context.event.binary_sbor_data.clone(),
+        context.incoming_event.binary_sbor_data.clone(),
     )
     .await
     .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))?;
@@ -82,7 +82,7 @@ pub async fn handle_swap_event(
     // info!("Handling swap event: {:#?}", event);
     add_to_database(
         context.transaction_handle,
-        context.event.binary_sbor_data.clone(),
+        context.incoming_event.binary_sbor_data.clone(),
     )
     .await
     .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))?;
@@ -102,7 +102,7 @@ pub async fn handle_contribution_event(
 ) -> Result<(), EventHandlerError> {
     add_to_database(
         context.transaction_handle,
-        context.event.binary_sbor_data.clone(),
+        context.incoming_event.binary_sbor_data.clone(),
     )
     .await
     .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))?;
@@ -122,7 +122,7 @@ pub async fn handle_redemption_event(
 ) -> Result<(), EventHandlerError> {
     add_to_database(
         context.transaction_handle,
-        context.event.binary_sbor_data.clone(),
+        context.incoming_event.binary_sbor_data.clone(),
     )
     .await
     .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))?;

@@ -18,6 +18,9 @@ pub fn decode_programmatic_json<T: ScryptoDecode>(
         .map_err(|error| ScryptoSborError::DecodeError(error))
 }
 
+/// Some representations of transactions only come with programmatic
+/// json data. This function converts the programmatic json data into
+/// binary SBOR representation.
 pub fn programmatic_json_to_bytes(
     data: &serde_json::Value,
 ) -> Result<Vec<u8>, ScryptoSborError> {
@@ -28,6 +31,9 @@ pub fn programmatic_json_to_bytes(
     Ok(string_representation.to_vec())
 }
 
+/// Encode a byte slice into a bech32 string representation.
+/// Useful for easily encoding addresses to the proper network
+/// string format.
 pub fn encode_bech32(
     data: &[u8],
     network: &NetworkDefinition,
