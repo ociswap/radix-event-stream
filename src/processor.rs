@@ -56,6 +56,98 @@ where
         }
     }
 
+    pub async fn process_transaction(
+        &mut self,
+        transaction: &IncomingTransaction,
+    ) -> Result<(), TransactionStreamProcessorError> {
+        // Find out if there are any events inside this transaction
+        // that have a handler registered.
+        let handler_exists = transaction.events.iter().any(|event| {
+            self.handler_registry
+                .get_handler(event.emitter.address(), &event.name)
+                .is_some()
+        });
+        if !handler_exists {
+            // If there are no handlers for any of the events in this transaction,
+            // we can skip processing it.
+            return Ok(());
+        }
+        info!(
+            "{}",
+            "--------------------------------------------------------"
+                .bright_blue()
+        );
+        info!(
+            "{}",
+            format!(
+                "HANDLING TRANSACTION - {:#?} - {}",
+                transaction.state_version,
+                transaction.confirmed_at
+                    .expect("When handling a transaction it should always have a timestamp")
+                    .format("%a %d-%m-%Y %H:%M").to_string()
+            )
+            .bright_green()
+        );
+
+        // Keep trying to handle the transaction in case
+        // the user requests this through a TransactionHandlerError.
+        while let Err(err) = self
+            .transaction_handler
+            .handle(TransactionHandlerContext {
+                app_state: &mut self.app_state,
+                transaction,
+                handler_registry: &mut self.handler_registry,
+            })
+            .await
+        {
+            match err {
+                TransactionHandlerError::TransactionRetryError(e) => {
+                    error!(
+                        "{}",
+                        format!("ERROR HANDLING TRANSACTION: {}", e)
+                            .bright_red()
+                    );
+                    info!(
+                        "{}",
+                        "RETRYING TRANSACTION IN 10 SECONDS\n".bright_yellow()
+                    );
+                    sleep(std::time::Duration::from_secs(10));
+                    info!(
+                                "{}",
+                                format!(
+                                    "RETRYING TRANSACTION - {:#?} - {}",
+                                    transaction.state_version,
+                                    transaction.confirmed_at
+                                        .expect("When handling a transaction it should always have a timestamp")
+                                        .to_rfc3339()
+                                )
+                                .bright_yellow()
+                            );
+                    continue;
+                }
+                TransactionHandlerError::UnrecoverableError(err) => {
+                    error!(
+                        "{}",
+                        format!("FATAL ERROR HANDLING TRANSACTION: {}\n", err)
+                            .bright_red()
+                    );
+                    return Err(
+                        TransactionStreamProcessorError::UnrecoverableError(
+                            err,
+                        ),
+                    );
+                }
+            }
+        }
+        info!("{}", "###### END TRANSACTION ######".bright_green());
+        info!(
+            "{}",
+            "--------------------------------------------------------"
+                .bright_blue()
+        );
+        Ok(())
+    }
+
     /// Starts processing transactions from the `TransactionStream`.
     pub async fn run(&mut self) -> Result<(), TransactionStreamProcessorError> {
         // Keep processing in an infinite loop.
@@ -86,93 +178,7 @@ where
 
             // Process each transaction.
             for transaction in transactions.iter() {
-                // Find out if there are any events inside this transaction
-                // that have a handler registered.
-                let handler_exists = transaction.events.iter().any(|event| {
-                    self.handler_registry
-                        .get_handler(event.emitter.address(), &event.name)
-                        .is_some()
-                });
-                if !handler_exists {
-                    // If there are no handlers for any of the events in this transaction,
-                    // we can skip processing it.
-                    continue;
-                }
-                info!(
-                    "{}",
-                    "--------------------------------------------------------"
-                        .bright_blue()
-                );
-                info!(
-                    "{}",
-                    format!(
-                        "HANDLING TRANSACTION - {:#?} - {}",
-                        transaction.state_version,
-                        transaction.confirmed_at
-                            .expect("When handling a transaction it should always have a timestamp")
-                            .format("%a %d-%m-%Y %H:%M").to_string()
-                    )
-                    .bright_green()
-                );
-
-                // Keep trying to handle the transaction in case
-                // the user requests this through a TransactionHandlerError.
-                while let Err(err) = self
-                    .transaction_handler
-                    .handle(TransactionHandlerContext {
-                        app_state: &mut self.app_state,
-                        transaction,
-                        handler_registry: &mut self.handler_registry,
-                    })
-                    .await
-                {
-                    match err {
-                        TransactionHandlerError::TransactionRetryError(e) => {
-                            error!(
-                                "{}",
-                                format!("ERROR HANDLING TRANSACTION: {}", e)
-                                    .bright_red()
-                            );
-                            info!(
-                                "{}",
-                                format!("RETRYING TRANSACTION IN 10 SECONDS\n")
-                                    .bright_yellow()
-                            );
-                            sleep(std::time::Duration::from_secs(10));
-                            info!(
-                                "{}",
-                                format!(
-                                    "RETRYING TRANSACTION - {:#?} - {}",
-                                    transaction.state_version,
-                                    transaction.confirmed_at
-                                        .expect("When handling a transaction it should always have a timestamp")
-                                        .to_rfc3339()
-                                )
-                                .bright_yellow()
-                            );
-                            continue;
-                        }
-                        TransactionHandlerError::UnrecoverableError(err) => {
-                            error!(
-                                "{}",
-                                format!(
-                                    "FATAL ERROR HANDLING TRANSACTION: {}\n",
-                                    err
-                                )
-                                .bright_red()
-                            );
-                            return Err(TransactionStreamProcessorError::UnrecoverableError(
-                                err,
-                            ));
-                        }
-                    }
-                }
-                info!("{}", "###### END TRANSACTION ######".bright_green());
-                info!(
-                    "{}",
-                    "--------------------------------------------------------"
-                        .bright_blue()
-                );
+                self.process_transaction(transaction).await?;
             }
         }
     }
@@ -326,10 +332,7 @@ impl IncomingTransaction {
                             format!("ERROR HANDLING EVENT: {}", e).bright_red()
                         );
 
-                        info!(
-                            "{}",
-                            format!("RETRYING IN 10 SECONDS\n").bright_yellow()
-                        );
+                        info!("{}", "RETRYING IN 10 SECONDS\n".bright_yellow());
                         sleep(std::time::Duration::from_secs(10));
                         info!(
                             "{}",
