@@ -90,8 +90,7 @@ pub fn transaction_handler(
     let fn_name = &input_fn.sig.ident;
     let struct_name = fn_name;
 
-    // Assuming the function signature follows a specific pattern, we need to extract
-    // the generic types from the context argument. This example assumes that
+    // Extract the generic types from the context argument. This example assumes that
     // TransactionHandlerContext is the first argument and that it carries two generic types.
     let context_arg = match input_fn
         .sig
