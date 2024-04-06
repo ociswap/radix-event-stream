@@ -66,7 +66,7 @@ async fn main() {
 
         // Handle the events in the transaction
         context
-            .transaction
+            .incoming_transaction
             .handle_events(
                 context.app_state,
                 context.handler_registry,

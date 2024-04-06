@@ -95,7 +95,7 @@ where
             .transaction_handler
             .handle(TransactionHandlerContext {
                 app_state: &mut self.app_state,
-                transaction,
+                incoming_transaction: transaction,
                 handler_registry: &mut self.handler_registry,
             })
             .await
@@ -267,7 +267,7 @@ where
         input: TransactionHandlerContext<'_, STATE, ()>,
     ) -> Result<(), TransactionHandlerError> {
         input
-            .transaction
+            .incoming_transaction
             .handle_events(input.app_state, input.handler_registry, &mut ())
             .await
             .unwrap();

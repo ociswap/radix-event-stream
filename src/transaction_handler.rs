@@ -37,6 +37,6 @@ where
     STATE: Clone,
 {
     pub app_state: &'a mut STATE,
-    pub transaction: &'a IncomingTransaction,
+    pub incoming_transaction: &'a IncomingTransaction,
     pub handler_registry: &'a mut HandlerRegistry<STATE, TRANSACTION_HANDLE>,
 }
