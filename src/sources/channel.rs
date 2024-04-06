@@ -2,9 +2,11 @@ use crate::{
     models::IncomingTransaction,
     stream::{TransactionStream, TransactionStreamError},
 };
-
 use async_trait::async_trait;
 
+/// A transaction stream that receives transactions from a channel.
+/// This is useful for controlled testing, as it allows you
+/// to send transactions to the stream as you wish.
 #[derive(Debug)]
 pub struct ChannelTransactionStream {
     receiver: tokio::sync::mpsc::Receiver<IncomingTransaction>,
