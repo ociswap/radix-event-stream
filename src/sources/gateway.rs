@@ -35,7 +35,7 @@ impl Into<IncomingEvent> for radix_client::gateway::models::Event {
         };
         IncomingEvent {
             name: self.name,
-            emitter: emitter,
+            emitter,
             binary_sbor_data: programmatic_json_to_bytes(&self.data).unwrap(),
         }
     }

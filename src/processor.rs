@@ -84,7 +84,7 @@ where
                 transaction.state_version,
                 transaction.confirmed_at
                     .expect("When handling a transaction it should always have a timestamp")
-                    .format("%a %d-%m-%Y %H:%M").to_string()
+                    .format("%a %d-%m-%Y %H:%M")
             )
             .bright_green()
         );
@@ -162,8 +162,7 @@ where
                     TransactionStreamError::Finished => {
                         info!(
                             "{}",
-                            format!("Finished processing transactions")
-                                .bright_red()
+                            "Finished processing transactions".bright_red()
                         );
                         return Ok(());
                     }
