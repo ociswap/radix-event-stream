@@ -20,9 +20,13 @@ Simply pick a transaction source, register your handlers and start the stream.
 
 Leverages the raw performance of Rust 🦀
 
+### ✅ Async:
+
+Supports asynchronous operations inside handlers for efficient queries.
+
 ## Background
 
-[Radix](https://www.radixdlt.com) is a platform for decentralized applications, specifically built for DeFi. Each smart contract, called a component on Radix, can emit events when transactions happen, including custom ones. An event may look somewhat like this:
+[Radix](https://www.radixdlt.com) is a platform for decentralized applications, specifically built for DeFi. Each smart contract, called a component on Radix, can emit events when transactions happen, including custom events defined by the author of the smart contract. An event may look somewhat like this:
 
 ```Rust
 #[derive(ScryptoSbor, ScryptoEvent)]
@@ -37,13 +41,13 @@ pub struct InstantiateEvent {
 
 These events are recorded inside of transactions in-sequence and stored on the Radix ledger. This allows developers to track the state of an application by reading events as they happen, and processing them in some specified way. That's what this library aims to achieve.
 
-Events on Radix are encoded as SBOR (Scrypto Binary-friendly Object Representation), a custom format supporting binary and json representations. Radix provides Rust crates which can decode SBOR directly into the events as we defined them in a blueprint.
+Events on Radix are encoded as SBOR (Scrypto Binary-friendly Object Representation), a custom format supporting binary and json representations. Radix provides Rust crates which can decode SBOR directly into the events as we defined them in a blueprint. This is possible because Scrypto, the programming language of Radix smart contracts, is based on Rust.
 
-Each event has an **emitter**. This is the on-ledger entity which emitted the event. Events also have a **name**, which is the name of the event and its data type on ledger. These two identifiers are enough to map incoming events to handlers.
+Each event has an **emitter**. This is the on-ledger entity that emitted the event. Events also have a **name**, which is the name of the event and its data type on ledger. These two identifiers are enough to map incoming events to handlers.
 
 ## General usage.
 
-### Step 1: copy over event definitions.
+### Step 1: copy/paste event definitions.
 
 ```Rust
 #[derive(ScryptoSbor, Debug)]
@@ -56,11 +60,11 @@ pub struct InstantiateEvent {
 }
 ```
 
-Above we see an event definition used in one of Ociswap's Basic pools. It derives at the very least `radix_engine_common::ScryptoSbor`, which is needed to decode it from binary SBOR. Copy this over to your project.
+Above we see an event definition used in one of Ociswap's Basic pools. It derives at the very least `radix_engine_common::ScryptoSbor`, which is needed to decode it from binary Scrypto SBOR. Copy this over to your project.
 
 ### Step 2: Define an application state.
 
-This will get shared with every transaction handler, and they can update it. It should at least implement Clone. If you need to share this data with other pieces of code you may choose to store items wrapped in Rc, RefCell, Arc, Mutex, etc.
+This will be mutably shared with every transaction handler. It should at least implement Clone. If you need to share this data with other pieces of code you may choose to store items wrapped in Rc, RefCell, Arc, Mutex, etc.
 
 ```rust
 #[derive(Clone)]
@@ -69,9 +73,38 @@ pub struct AppState {
 }
 ```
 
-### Step 3: implement handlers.
+### Step 3: implement event handlers.
 
-Write a handler which conforms to the predefined handler signature. It must take in the `EventHandlerContext`, which stores things like the current Radix transaction and the application state defined in step 1. I also takes the decoded event type as we copied over from our blueprint in step 1.
+Write one or multiple event handlers which conform to the predefined handler signature:
+
+```Rust
+// A macro from the crate which transforms the handler function
+// into a representation that is usable for the framework.
+#[event_handler]
+// Name of your handler
+pub fn event_handler_name(
+    // Context the handler will get from the framework.
+    // This includes the current ledger transaction we're in,
+    // the raw event, the app state, and some other transaction context.
+    context: EventHandlerContext<YOUR_APP_STATE>,
+    // The decoded event struct as defined in your smart contract.
+    event: EVENT_STRUCT,
+) -> Result<(), EventHandlerError> {
+    // Handle the event here.
+
+    // Possible errors
+    // Retry handling the current event
+    return EventHandlerError::EventRetryError(anyhow!("Retry event because of..."));
+    // Retry handling the current transaction
+    return EventHandlerError::TransactionRetryError(anyhow!("Retry transaction because of..."));
+    // Stop the stream
+    return EventHandlerError::UnrecoverableError(anyhow!("Stream failed because of..."));
+    // Everything's ok!
+    Ok(())
+}
+```
+
+It must take in the `EventHandlerContext`, which stores things like the current Radix transaction and the application state defined in step 1. I also takes the decoded event type as we copied over from our blueprint in step 1.
 
 The `EventHandler` trait actually defines handlers to take in a `Vec<u8>` instead of the event type itself, but the `#[event_handler]` macro expands the function to handle decoding of the event for you.
 
