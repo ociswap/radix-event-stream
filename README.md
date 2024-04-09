@@ -92,7 +92,7 @@ pub async fn event_handler_name(
 ) -> Result<(), EventHandlerError> {
     // Handle the event here.
 
-    // Possible errors
+    // Possible errors to return:
     // Retry handling the current event
     return Err(EventHandlerError::EventRetryError(
         anyhow!("Retry event because of...")
@@ -251,7 +251,7 @@ async fn transaction_handler_name(
         // So, best to propagate these with the ? operator..
         .await?;
 
-    // Possible errors:
+    // Possible errors to return:
     // Retry handling the current transaction
     return Err(EventHandlerError::TransactionRetryError(
         anyhow!("Retry transaction because of...")
