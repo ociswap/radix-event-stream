@@ -301,3 +301,7 @@ TransactionStreamProcessor::run_with(
 ```
 
 There also exists a `SimpleTransactionStreamProcessor`, which does not require a transaction handler. It simply calls the `handle_events` method from the previous step and nothing else. It's easier to set up and recommended in the case where you do not need transaction-level handling.
+
+# More info
+
+For more examples, please see the `/examples` directory, or ask us on telegram/discord if you have any specific questions!
