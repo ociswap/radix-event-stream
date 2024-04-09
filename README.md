@@ -30,7 +30,7 @@ Supports asynchronous operations inside handlers for efficient queries.
 
 ```Rust
 #[derive(ScryptoSbor, ScryptoEvent)]
-pub struct InstantiateEvent {
+struct InstantiateEvent {
     x_address: ResourceAddress,
     y_address: ResourceAddress,
     input_fee_rate: Decimal,
@@ -51,7 +51,7 @@ Each event has an **emitter**. This is the on-ledger entity that emitted the eve
 
 ```Rust
 #[derive(ScryptoSbor, Debug)]
-pub struct InstantiateEvent {
+struct InstantiateEvent {
     x_address: ResourceAddress,
     y_address: ResourceAddress,
     context_fee_rate: Decimal,
@@ -68,7 +68,7 @@ This will be mutably shared with every transaction handler. It should at least i
 
 ```rust
 #[derive(Clone)]
-pub struct AppState {
+struct AppState {
     instantiate_events_seen: u64
 }
 ```
@@ -82,7 +82,7 @@ Write one or multiple event handlers which conform to the predefined handler sig
 // into a representation that is usable for the framework.
 #[event_handler]
 // Name of your handler
-pub async fn event_handler_name(
+async fn event_handler_name(
     // Context the handler will get from the framework.
     // This includes the current ledger transaction we're in,
     // the raw event, the app state, and some other transaction context.
@@ -136,7 +136,7 @@ This handler counts the amount of `InstantiateEvents` seen inside an app state v
 As shown above, it is possible to return errors from the event:
 
 ```rust
-pub enum EventHandlerError {
+enum EventHandlerError {
     /// The event handler encountered an error and
     /// should be retried directly.
     /// This shouldn't be propagated up to the transaction handler.
@@ -191,7 +191,7 @@ Let's use the gateway stream:
 A transaction stream implements the `TransactionStream` trait, which has a next() method. This method returns a new batch of transactions to process. It can also return one of the following errors:
 
 ```rust
-pub enum TransactionStreamError {
+enum TransactionStreamError {
     /// The stream is caught up with the latest transactions.
     /// The processor should wait for new transactions and try again.
     CaughtUp,
