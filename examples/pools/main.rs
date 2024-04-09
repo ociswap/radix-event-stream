@@ -5,6 +5,7 @@ use log::error;
 use radix_engine_common::network::NetworkDefinition;
 use radix_event_stream::macros::transaction_handler;
 use radix_event_stream::sources::file::FileTransactionStream;
+use radix_event_stream::transaction_handler::TransactionHandler;
 use radix_event_stream::{
     event_handler::HandlerRegistry, processor::TransactionStreamProcessor,
     sources::gateway::GatewayTransactionStream,
@@ -79,47 +80,69 @@ async fn main() {
         Ok(())
     }
 
-    if arg == "file" {
-        // Create a new transaction stream from a file, which the processor will use
-        // as a source of transactions.
-        let stream = FileTransactionStream::new(
-            "examples/pools/transactions.json".to_string(),
-        );
-
-        // Start with parameters.
-        TransactionStreamProcessor::run_with(
-            stream,
-            handler_registry,
-            transaction_handler,
-            AppState {
-                number: 0,
-                pool: Arc::new(pool),
-                network: NetworkDefinition::mainnet(),
-            },
-        )
-        .await
-        .unwrap();
-    } else if arg == "gateway" {
-        // Create a new transaction stream, which the processor will use
-        // as a source of transactions.
-        let stream = GatewayTransactionStream::new(
-            1919391,
-            100,
-            "https://mainnet.radixdlt.com".to_string(),
-        );
-
-        // Start with parameters.
-        TransactionStreamProcessor::run_with(
-            stream,
-            handler_registry,
-            transaction_handler,
-            AppState {
-                number: 0,
-                pool: Arc::new(pool),
-                network: NetworkDefinition::mainnet(),
-            },
-        )
-        .await
-        .unwrap();
+    match arg.as_str() {
+        "file" => {
+            run_from_file(handler_registry, pool, transaction_handler).await
+        }
+        "gateway" => {
+            run_from_gateway(handler_registry, pool, transaction_handler).await
+        }
+        _ => {
+            unreachable!();
+        }
     }
+}
+
+async fn run_from_file(
+    handler_registry: HandlerRegistry<AppState, TxHandle>,
+    pool: Pool<Sqlite>,
+    transaction_handler: impl TransactionHandler<AppState, TxHandle> + 'static,
+) {
+    // Create a new transaction stream from a file, which the processor will use
+    // as a source of transactions.
+    let stream = FileTransactionStream::new(
+        "examples/pools/transactions.json".to_string(),
+    );
+
+    // Start with parameters.
+    TransactionStreamProcessor::run_with(
+        stream,
+        handler_registry,
+        transaction_handler,
+        AppState {
+            number: 0,
+            pool: Arc::new(pool),
+            network: NetworkDefinition::mainnet(),
+        },
+    )
+    .await
+    .unwrap();
+}
+
+async fn run_from_gateway(
+    handler_registry: HandlerRegistry<AppState, TxHandle>,
+    pool: Pool<Sqlite>,
+    transaction_handler: impl TransactionHandler<AppState, TxHandle> + 'static,
+) {
+    // Create a new transaction stream, which the processor will use
+    // as a source of transactions.
+    let stream = GatewayTransactionStream::new(
+        1919391,
+        100,
+        "https://mainnet.radixdlt.com".to_string(),
+    );
+
+    // Start with parameters.
+    TransactionStreamProcessor::run_with(
+        stream,
+        handler_registry,
+        transaction_handler,
+        AppState {
+            number: 0,
+            pool: Arc::new(pool),
+            network: NetworkDefinition::mainnet(),
+        },
+    )
+    .await
+    .unwrap();
 }
