@@ -1,10 +1,10 @@
 use super::definitions::*;
-use handler_macro::event_handler;
 use radix_engine_common::{
     math::Decimal,
     types::{ComponentAddress, ResourceAddress},
     ScryptoSbor,
 };
+use radix_event_stream::macros::event_handler;
 use radix_event_stream::{encodings::encode_bech32, error::EventHandlerError};
 use sbor::rust::collections::IndexMap;
 
