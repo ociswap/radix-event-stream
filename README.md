@@ -94,11 +94,17 @@ pub fn event_handler_name(
 
     // Possible errors
     // Retry handling the current event
-    return EventHandlerError::EventRetryError(anyhow!("Retry event because of..."));
+    return EventHandlerError::EventRetryError(
+            anyhow!("Retry event because of...")
+        );
     // Retry handling the current transaction
-    return EventHandlerError::TransactionRetryError(anyhow!("Retry transaction because of..."));
+    return EventHandlerError::TransactionRetryError(
+            anyhow!("Retry transaction because of...")
+        );
     // Stop the stream
-    return EventHandlerError::UnrecoverableError(anyhow!("Stream failed because of..."));
+    return EventHandlerError::UnrecoverableError(
+            anyhow!("Stream failed because of...")
+        );
     // Everything's ok!
     Ok(())
 }
