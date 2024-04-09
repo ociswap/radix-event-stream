@@ -82,7 +82,7 @@ Write one or multiple event handlers which conform to the predefined handler sig
 // into a representation that is usable for the framework.
 #[event_handler]
 // Name of your handler
-pub fn event_handler_name(
+pub async fn event_handler_name(
     // Context the handler will get from the framework.
     // This includes the current ledger transaction we're in,
     // the raw event, the app state, and some other transaction context.
@@ -94,29 +94,31 @@ pub fn event_handler_name(
 
     // Possible errors
     // Retry handling the current event
-    return EventHandlerError::EventRetryError(
-            anyhow!("Retry event because of...")
-        );
+    return Err(EventHandlerError::EventRetryError(
+        anyhow!("Retry event because of...")
+    ));
     // Retry handling the current transaction
-    return EventHandlerError::TransactionRetryError(
-            anyhow!("Retry transaction because of...")
-        );
+    return Err(EventHandlerError::TransactionRetryError(
+        anyhow!("Retry transaction because of...")
+    ));
     // Stop the stream
-    return EventHandlerError::UnrecoverableError(
-            anyhow!("Stream failed because of...")
-        );
+    return Err(EventHandlerError::UnrecoverableError(
+        anyhow!("Stream failed because of...")
+    ));
     // Everything's ok!
     Ok(())
 }
 ```
 
-It must take in the `EventHandlerContext`, which stores things like the current Radix transaction and the application state defined in step 1. I also takes the decoded event type as we copied over from our blueprint in step 1.
+It must take in the `EventHandlerContext`, which stores things like the current ledger transaction and the application state defined in step 1. I also takes the decoded event type as we copied over from our blueprint in step 1.
 
 The `EventHandler` trait actually defines handlers to take in a `Vec<u8>` instead of the event type itself, but the `#[event_handler]` macro expands the function to handle decoding of the event for you.
 
+A concrete example:
+
 ```Rust
 #[event_handler]
-pub fn handle_instantiate_event(
+async fn handle_instantiate_event(
     context: EventHandlerContext<AppState>,
     event: InstantiateEvent,
 ) -> Result<(), EventHandlerError> {
@@ -131,7 +133,7 @@ pub fn handle_instantiate_event(
 
 This handler counts the amount of `InstantiateEvents` seen inside an app state variable as we go through the ledger.
 
-It is possible to return errors from the event:
+As shown above, it is possible to return errors from the event:
 
 ```rust
 pub enum EventHandlerError {
@@ -159,14 +161,14 @@ let mut handler_registry: HandlerRegistry<AppState> =
     HandlerRegistry::new();
 ```
 
-Add any handlers to the registry, identified by emitters and event names. In this case, we would like to handle `InstantiateEvent`s emitted by Ociswap's Basic pool package address.
+Add any handlers to the registry, identified by emitters and event names. In this case, we would like to handle `InstantiateEvent` events emitted by Ociswap's Basic pool package address.
 
 ```rust
 // Add the instantiate event handler to the registry
 handler_registry.add_handler(
     "package_rdx1p5l6dp3slnh9ycd7gk700czwlck9tujn0zpdnd0efw09n2zdnn0lzx",
     "InstantiateEvent",
-    events::handle_instantiate_event,
+    handle_instantiate_event,
 );
 ```
 
@@ -174,7 +176,7 @@ Note that you can also register new handlers inside a handler. This is necessary
 
 ### Step 5: Pick a source.
 
-The library holds a few different transaction stream sources out of the box: A Radix Gateway stream and a file stream. It is also quite easy to implement your own custom stream, to allow getting events from a database, for example.
+The library holds a few different transaction stream sources out of the box: A Radix Gateway stream based on our radix-client crate, a file stream, and a channel stream. It is also quite easy to implement your own custom stream, to allow getting events from a database, for example.
 
 Let's use the gateway stream:
 
@@ -201,27 +203,76 @@ pub enum TransactionStreamError {
 }
 ```
 
-A gateway stream would never return `Finished`, because there will always be new transactions. A file stream would only return `Finished` when there are no more transactions. In that case, the stream would exit.
+A gateway stream would never return `Finished`, because there will always be new transactions. A file stream would only return `Finished` when there are no more transactions. In that case, the stream would exit successfully.
 
-### Step 6: Define a transaction handler. (Optional)
+### Step 6: Define a transaction handler and transaction context. (Optional)
 
-To make the transaction stream have any kind of sense of ledger transactions, we must implement a custom transaction handler. This will allow us to do transaction-level operations. For example, if we want to store events in a database, and we want to push events to our database per ledger transaction atomically, we might want to use database transactions. Each time we get a transaction from the stream, we should start a database transaction and try to commit it after all the events have been handled. This is what we can do using a custom transaction handler.
+To make the transaction stream have any kind of sense of ledger transactions, we must implement a custom transaction handler. This will allow us to do transaction-level operations. For example, if we want to store events in a database, and we want to push events to our database per ledger transaction atomically, we might want to use database transactions. Each time we get a transaction from the stream, we should start a database transaction and try to commit it after all the events have been handled. We can use a custom transaction handler for this.
 
-A transaction handler takes in a `TransactionHandlerContext` struct, and returns a result with a `TransactionHandlerError`.
+Custom transaction handlers can pass a custom transaction context to event handlers. This gives event handlers access to a database transaction for example, so that each handler can do inserts inside that transaction. Let's define a custom transaction context struct:
 
 ```rust
-fn transaction_handler(
-    context: TransactionHandlerContext<AppState>,
+// pseudocode
+struct TransactionContext {
+    tx: DATABASE_TRANSACTION
+}
+```
+
+It should again conform to the predefined signature:
+
+```Rust
+// A macro from the crate which transforms the handler function
+// into a representation that is usable for the framework.
+#[transaction_handler]
+// Name of your handler
+async fn transaction_handler_name(
+    // Context the handler will get from the framework.
+    // This includes the current ledger transaction we're in
+    // and the application state. It is parametrized by the
+    // app state and the transaction context type, but the context is optional,
+    // and defaults to the unit type.
+    context: TransactionHandlerContext<YOUR_APP_STATE, YOUR_TRANSACTION_CONTEXT_TYPE>,
 ) -> Result<(), TransactionHandlerError> {
+    // Do something like start a database transaction
+    let mut transaction_context = TransactionContext { tx: start_transaction() }
+
+    // Handle the events inside the incoming transaction.
+    // We provide a simple method for this.
+    context
+        .incoming_transaction
+        .handle_events(
+            context.app_state,
+            context.handler_registry,
+            // the transaction context is passed in
+            &mut transaction_context,
+        )
+        // EventHandlerErrors can be cast into TransactionHandlerErrors,
+        // and the framework will handle these appropriately.
+        // So, best to propagate these with the ? operator..
+        .await?;
+
+    // Possible errors:
+    // Retry handling the current transaction
+    return Err(EventHandlerError::TransactionRetryError(
+        anyhow!("Retry transaction because of...")
+    ));
+    // Stop the stream
+    return Err(EventHandlerError::UnrecoverableError(
+        anyhow!("Stream failed because of...")
+    ));
+    // Everything's ok!
     Ok(())
 }
 ```
 
-The `TransactionHandlerContext` holds a reference to the `IncomingTransaction`. A method called `handle_events` is implemented on this struct. Calling it will iterate through the events inside the transactions and process the events which have handlers registered. It is highly recommended to use this method in your transaction handler. It is possible to implement your own loop, but it is an integral part of the library and also handles the event retry logic and some logging.
+The `TransactionHandlerContext` holds a reference to the incoming transaction. A method called `handle_events` is implemented on this struct. Calling it will iterate through the events inside the transactions and process the events which have handlers registered. It is highly recommended to use this method in your transaction handler. It is possible to implement your own loop, but it is an integral part of the library and also handles the event retry logic and some logging.
+
+Simplest concrete example:
 
 ```rust
-fn transaction_handler(
-    context: TransactionHandlerContext<AppState>,
+#[transaction_handler]
+async fn transaction_handler(
+    context: TransactionHandlerContext<AppState, ()>,
 ) -> Result<(), TransactionHandlerError> {
     // Do something before handling events
     context
@@ -249,10 +300,4 @@ TransactionStreamProcessor::run_with(
         );
 ```
 
-There also exists a `SimpleTransactionStreamProcessor`, which does not require a transaction handler. It simply calls the `handle_events` method from the previous step and nothing else.
-
-## Some notes
-
-- Currently, there are some pretty large dependencies like all of Scrypto and radix-engine-common. I should investigate if we can cut down since we don't use all of it.
-
-- I believe there is a bug in the Radix engine toolkit causing my code to break. When I remove the one line which I think is broken, my code works. I've submitted a [pull request](https://github.com/radixdlt/radix-engine-toolkit/pull/110) for them to look at it, but they haven't yet responded.
+There also exists a `SimpleTransactionStreamProcessor`, which does not require a transaction handler. It simply calls the `handle_events` method from the previous step and nothing else. It's easier to set up and recommended in the case where you do not need transaction-level handling.
