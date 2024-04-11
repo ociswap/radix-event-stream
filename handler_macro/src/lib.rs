@@ -70,7 +70,9 @@ pub fn event_handler(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 context: radix_event_stream::event_handler::EventHandlerContext<'_, #generics_handling>,
                 event: Vec<u8>,
             ) -> Result<(), radix_event_stream::error::EventHandlerError> {
-                let event: #event_type = radix_event_stream::scrypto_decode(&event).unwrap();
+                let event: #event_type = radix_event_stream::scrypto_decode(&event).map_err(|error| {
+                    radix_event_stream::error::EventHandlerError::UnrecoverableError(radix_event_stream::anyhow!("Failed to decode event: {:?}", error))
+                })?;
                 #function_body
             }
         }

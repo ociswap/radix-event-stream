@@ -1,11 +1,11 @@
 use chrono::Utc;
 
-/// Generic struct for incoming events from a
+/// Generic struct for ledger events from a
 /// transaction stream. To implement a new transaction
-/// stream type, you would typically implement `Into<IncomingEvent>`
+/// stream type, you would typically implement `Into<Event>`
 /// for the native event type of the transaction stream.
 #[derive(Debug)]
-pub struct IncomingEvent {
+pub struct Event {
     pub name: String,
     pub binary_sbor_data: Vec<u8>,
     pub emitter: EventEmitter,
@@ -34,14 +34,14 @@ impl EventEmitter {
     }
 }
 
-/// Generic struct for incoming transactions from a
+/// Generic struct for ledger transactions from a
 /// transaction stream. To implement a new transaction
-/// stream type, you would typically implement `Into<IncomingTransaction>`
+/// stream type, you would typically implement `Into<Transaction>`
 /// for the native transaction type of the transaction stream.
 #[derive(Debug)]
-pub struct IncomingTransaction {
+pub struct Transaction {
     pub intent_hash: String,
     pub state_version: u64,
     pub confirmed_at: Option<chrono::DateTime<Utc>>,
-    pub events: Vec<IncomingEvent>,
+    pub events: Vec<Event>,
 }

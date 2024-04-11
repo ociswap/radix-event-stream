@@ -60,15 +60,15 @@ struct InstantiateEvent {
 }
 ```
 
-Above we see an event definition used in one of Ociswap's Basic pools. It derives at the very least `radix_engine_common::ScryptoSbor`, which is needed to decode it from binary Scrypto SBOR. Copy this over to your project.
+Above, we see an event definition used in one of Ociswap's Basic pools. It derives at the very least `radix_engine_common::ScryptoSbor`, which is needed to decode it from binary Scrypto SBOR. Copy this over to your project.
 
-### Step 2: Define an application state.
+### Step 2: Define a global state.
 
 This will be mutably shared with every transaction handler. It should at least implement Clone. If you need to share this data with other pieces of code you may choose to store items wrapped in Rc, RefCell, Arc, Mutex, etc.
 
 ```rust
 #[derive(Clone)]
-struct AppState {
+struct State {
     instantiate_events_seen: u64
 }
 ```
@@ -85,8 +85,8 @@ Write one or multiple event handlers which conform to the predefined handler sig
 async fn event_handler_name(
     // Context the handler will get from the framework.
     // This includes the current ledger transaction we're in,
-    // the raw event, the app state, and some other transaction context.
-    context: EventHandlerContext<YOUR_APP_STATE>,
+    // the raw event, the global state, and the transaction context.
+    context: EventHandlerContext<YOUR_STATE>,
     // The decoded event struct as defined in your smart contract.
     event: EVENT_STRUCT,
 ) -> Result<(), EventHandlerError> {
@@ -110,7 +110,7 @@ async fn event_handler_name(
 }
 ```
 
-It must take in the `EventHandlerContext`, which stores things like the current ledger transaction and the application state defined in step 1. I also takes the decoded event type as we copied over from our blueprint in step 1.
+It must take in the `EventHandlerContext`, which stores things like the current ledger transaction and the global state defined in step 2. I also takes the decoded event type as we copied over from our blueprint in step 1.
 
 The `EventHandler` trait actually defines handlers to take in a `Vec<u8>` instead of the event type itself, but the `#[event_handler]` macro expands the function to handle decoding of the event for you.
 
@@ -124,9 +124,9 @@ async fn handle_instantiate_event(
 ) -> Result<(), EventHandlerError> {
     info!(
         "Handling the {}th instantiate event: {:#?}",
-        context.app_state.instantiate_events_seen, event
+        context.state.instantiate_events_seen, event
     );
-    context.app_state.instantiate_events_seen += 1;
+    context.state.instantiate_events_seen += 1;
     Ok(())
 }
 ```
@@ -188,7 +188,7 @@ Let's use the gateway stream:
     );
 ```
 
-A transaction stream implements the `TransactionStream` trait, which has a next() method. This method returns a new batch of transactions to process. It can also return one of the following errors:
+A transaction stream implements the `TransactionStream` trait, which has a `next()` method. This method returns a new batch of transactions to process. It can also return one of the following errors:
 
 ```rust
 enum TransactionStreamError {
@@ -203,7 +203,7 @@ enum TransactionStreamError {
 }
 ```
 
-A gateway stream would never return `Finished`, because there will always be new transactions. A file stream would only return `Finished` when there are no more transactions. In that case, the stream would exit successfully.
+A gateway stream would never return `Finished`, because there will always be new transactions to handle. A file stream would only return `Finished` when there are no more transactions. In that case, the stream would exit with an Ok() value.
 
 ### Step 6: Define a transaction handler and transaction context. (Optional)
 
@@ -214,7 +214,7 @@ Custom transaction handlers can pass a custom transaction context to event handl
 ```rust
 // pseudocode
 struct TransactionContext {
-    tx: DATABASE_TRANSACTION
+    tx: YOUR_DATABASE_TRANSACTION
 }
 ```
 
@@ -228,10 +228,10 @@ It should again conform to the predefined signature:
 async fn transaction_handler_name(
     // Context the handler will get from the framework.
     // This includes the current ledger transaction we're in
-    // and the application state. It is parametrized by the
+    // and the global state. It is parametrized by the
     // app state and the transaction context type, but the context is optional,
     // and defaults to the unit type.
-    context: TransactionHandlerContext<YOUR_APP_STATE, YOUR_TRANSACTION_CONTEXT_TYPE>,
+    context: TransactionHandlerContext<YOUR_STATE, YOUR_TRANSACTION_CONTEXT_TYPE>,
 ) -> Result<(), TransactionHandlerError> {
     // Do something like start a database transaction
     let mut transaction_context = TransactionContext { tx: start_transaction() }
@@ -239,16 +239,16 @@ async fn transaction_handler_name(
     // Handle the events inside the incoming transaction.
     // We provide a simple method for this.
     context
-        .incoming_transaction
-        .handle_events(
-            context.app_state,
+        .transaction
+        .process_events(
+            context.state,
             context.handler_registry,
             // the transaction context is passed in
             &mut transaction_context,
         )
         // EventHandlerErrors can be cast into TransactionHandlerErrors,
         // and the framework will handle these appropriately.
-        // So, best to propagate these with the ? operator..
+        // So, best to propagate these with the ? operator.
         .await?;
 
     // Possible errors to return:
@@ -265,7 +265,7 @@ async fn transaction_handler_name(
 }
 ```
 
-The `TransactionHandlerContext` holds a reference to the incoming transaction. A method called `handle_events` is implemented on this struct. Calling it will iterate through the events inside the transactions and process the events which have handlers registered. It is highly recommended to use this method in your transaction handler. It is possible to implement your own loop, but it is an integral part of the library and also handles the event retry logic and some logging.
+The `TransactionHandlerContext` holds a reference to the incoming transaction. A method called `process_events` is implemented on this struct. Calling it will iterate through the events inside the transactions and process the events which have handlers registered. It is highly recommended to use this method in your transaction handler. It is possible to implement your own loop, but it is an integral part of the library and also handles the event retry logic and some logging.
 
 Simplest concrete example:
 
@@ -277,7 +277,7 @@ async fn transaction_handler(
     // Do something before handling events
     context
         .transaction
-        .handle_events(context.app_state, context.handler_registry)?;
+        .process_events(context.state, context.handler_registry)?;
     // Do something after handling events
     Ok(())
 }
@@ -294,14 +294,14 @@ TransactionStreamProcessor::run_with(
             stream,
             handler_registry,
             transaction_handler,
-            AppState {
+            State {
                 instantiate_events_seen: 0
             },
         );
 ```
 
-There also exists a `SimpleTransactionStreamProcessor`, which does not require a transaction handler. It simply calls the `handle_events` method from the previous step and nothing else. It's easier to set up and recommended in the case where you do not need transaction-level handling.
+There also exists a `SimpleTransactionStreamProcessor`, which does not require a transaction handler. It simply calls the `process_events` method from the previous step and nothing else. It's easier to set up and recommended in the case where you do not need transaction-level handling.
 
 # More info
 
-For more examples, please see the `/examples` directory, or ask us on telegram/discord if you have any specific questions!
+For more examples, please see the `/examples` directory, or ask us on telegram/discord if you have any specific questions! We'd be happy to help.

@@ -29,9 +29,9 @@ pub fn handle_instantiate_event(
 ) -> Result<(), EventHandlerError> {
     info!(
         "Handling the {}th instantiate event: {:#?}",
-        context.app_state.number, event
+        context.state.number, event
     );
-    context.app_state.number += 1;
+    context.state.number += 1;
     Ok(())
 }
 

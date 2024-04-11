@@ -1,14 +1,14 @@
 pub mod basicv0;
-use crate::basicv0::definitions::{AppState, TxHandle};
+use crate::basicv0::definitions::{State, TransactionContext};
 use crate::basicv0::events;
 use log::error;
 use radix_engine_common::network::NetworkDefinition;
 use radix_event_stream::macros::transaction_handler;
-use radix_event_stream::sources::file::FileTransactionStream;
 use radix_event_stream::transaction_handler::TransactionHandler;
 use radix_event_stream::{
-    event_handler::HandlerRegistry, processor::TransactionStreamProcessor,
-    sources::gateway::GatewayTransactionStream,
+    event_handler::HandlerRegistry,
+    processor::TransactionStreamProcessor,
+    sources::{file::FileTransactionStream, gateway::GatewayTransactionStream},
 };
 use sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
 use std::env;
@@ -28,7 +28,7 @@ async fn main() {
     };
 
     // Create a new database and initialize a simple schema with
-    // one table: `events` with "id" and "data" columns as integer and text
+    // one table: `events` with "id" and "data" columns as integer and bytes respectively
     let database_url = "sqlite:examples/pools/basicv0/my_database.db?mode=rwc";
     let pool: Pool<Sqlite> = SqlitePoolOptions::new()
         .max_connections(5)
@@ -47,11 +47,11 @@ async fn main() {
     .await
     .unwrap();
 
-    // Create a new handler registry
-    let mut handler_registry: HandlerRegistry<AppState, TxHandle> =
+    // Create a new handler registry for event handlers
+    let mut handler_registry: HandlerRegistry<State, TransactionContext> =
         HandlerRegistry::new();
 
-    // Add the instantiate event handler to the registry
+    // Add the 'InstantiateEvent' handler to the registry
     handler_registry.add_handler(
         "package_rdx1p5l6dp3slnh9ycd7gk700czwlck9tujn0zpdnd0efw09n2zdnn0lzx",
         "InstantiateEvent",
@@ -60,16 +60,16 @@ async fn main() {
 
     #[transaction_handler]
     async fn transaction_handler(
-        context: TransactionHandlerContext<AppState, TxHandle>,
+        context: TransactionHandlerContext<State, TransactionContext>,
     ) -> Result<(), TransactionHandlerError> {
-        let tx = context.app_state.pool.begin().await.unwrap();
-        let mut transaction_context = TxHandle { transaction: tx };
+        let tx = context.state.pool.begin().await.unwrap();
+        let mut transaction_context = TransactionContext { transaction: tx };
 
         // Handle the events in the transaction
         context
-            .incoming_transaction
-            .handle_events(
-                context.app_state,
+            .transaction
+            .process_events(
+                context.state,
                 context.handler_registry,
                 &mut transaction_context,
             )
@@ -94,9 +94,10 @@ async fn main() {
 }
 
 async fn run_from_file(
-    handler_registry: HandlerRegistry<AppState, TxHandle>,
+    handler_registry: HandlerRegistry<State, TransactionContext>,
     pool: Pool<Sqlite>,
-    transaction_handler: impl TransactionHandler<AppState, TxHandle> + 'static,
+    transaction_handler: impl TransactionHandler<State, TransactionContext>
+        + 'static,
 ) {
     // Create a new transaction stream from a file, which the processor will use
     // as a source of transactions.
@@ -109,7 +110,7 @@ async fn run_from_file(
         stream,
         handler_registry,
         transaction_handler,
-        AppState {
+        State {
             number: 0,
             pool: Arc::new(pool),
             network: NetworkDefinition::mainnet(),
@@ -120,9 +121,10 @@ async fn run_from_file(
 }
 
 async fn run_from_gateway(
-    handler_registry: HandlerRegistry<AppState, TxHandle>,
+    handler_registry: HandlerRegistry<State, TransactionContext>,
     pool: Pool<Sqlite>,
-    transaction_handler: impl TransactionHandler<AppState, TxHandle> + 'static,
+    transaction_handler: impl TransactionHandler<State, TransactionContext>
+        + 'static,
 ) {
     // Create a new transaction stream, which the processor will use
     // as a source of transactions.
@@ -137,7 +139,7 @@ async fn run_from_gateway(
         stream,
         handler_registry,
         transaction_handler,
-        AppState {
+        State {
             number: 0,
             pool: Arc::new(pool),
             network: NetworkDefinition::mainnet(),

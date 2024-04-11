@@ -1,5 +1,5 @@
 use crate::{
-    models::IncomingTransaction,
+    models::Transaction,
     stream::{TransactionStream, TransactionStreamError},
 };
 use async_trait::async_trait;
@@ -9,11 +9,11 @@ use async_trait::async_trait;
 /// to send transactions to the stream as you wish.
 #[derive(Debug)]
 pub struct ChannelTransactionStream {
-    receiver: tokio::sync::mpsc::Receiver<IncomingTransaction>,
+    receiver: tokio::sync::mpsc::Receiver<Transaction>,
 }
 
 impl ChannelTransactionStream {
-    pub fn new() -> (Self, tokio::sync::mpsc::Sender<IncomingTransaction>) {
+    pub fn new() -> (Self, tokio::sync::mpsc::Sender<Transaction>) {
         let (sender, receiver) = tokio::sync::mpsc::channel(100);
         (ChannelTransactionStream { receiver }, sender)
     }
@@ -23,7 +23,7 @@ impl ChannelTransactionStream {
 impl TransactionStream for ChannelTransactionStream {
     async fn next(
         &mut self,
-    ) -> Result<Vec<IncomingTransaction>, TransactionStreamError> {
+    ) -> Result<Vec<Transaction>, TransactionStreamError> {
         match self.receiver.recv().await {
             Some(transaction) => Ok(vec![transaction]),
             None => return Err(TransactionStreamError::Finished),

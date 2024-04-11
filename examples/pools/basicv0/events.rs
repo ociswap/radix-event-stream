@@ -9,7 +9,7 @@ use radix_event_stream::{encodings::encode_bech32, error::EventHandlerError};
 use sbor::rust::collections::IndexMap;
 
 async fn add_to_database(
-    transaction_context: &mut TxHandle,
+    transaction_context: &mut TransactionContext,
     data: Vec<u8>,
 ) -> Result<(), sqlx::Error> {
     sqlx::query("INSERT INTO events (data) VALUES (?)")
@@ -31,23 +31,23 @@ pub struct InstantiateEvent {
 
 #[event_handler]
 async fn handle_instantiate_event(
-    context: EventHandlerContext<AppState, TxHandle>,
+    context: EventHandlerContext<State, TransactionContext>,
     event: InstantiateEvent,
 ) -> Result<(), EventHandlerError> {
     let component_address = encode_bech32(
         event.pool_address.as_node_id().as_bytes(),
-        &context.app_state.network,
+        &context.state.network,
     )
     .map_err(|err| EventHandlerError::EventRetryError(err.into()))?;
     let native_address = encode_bech32(
         event.liquidity_pool_address.as_node_id().as_bytes(),
-        &context.app_state.network,
+        &context.state.network,
     )
     .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))?;
 
     add_to_database(
-        context.transaction_handle,
-        context.incoming_event.binary_sbor_data.clone(),
+        context.transaction_context,
+        context.event.binary_sbor_data.clone(),
     )
     .await
     .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))?;
@@ -76,13 +76,13 @@ pub struct SwapEvent {
 
 #[event_handler]
 pub async fn handle_swap_event(
-    context: EventHandlerContext<AppState, TxHandle>,
+    context: EventHandlerContext<State, TransactionContext>,
     event: SwapEvent,
 ) -> Result<(), EventHandlerError> {
     // info!("Handling swap event: {:#?}", event);
     add_to_database(
-        context.transaction_handle,
-        context.incoming_event.binary_sbor_data.clone(),
+        context.transaction_context,
+        context.event.binary_sbor_data.clone(),
     )
     .await
     .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))?;
@@ -97,12 +97,12 @@ pub struct ContributionEvent {
 
 #[event_handler]
 pub async fn handle_contribution_event(
-    context: EventHandlerContext<AppState, TxHandle>,
+    context: EventHandlerContext<State, TransactionContext>,
     event: ContributionEvent,
 ) -> Result<(), EventHandlerError> {
     add_to_database(
-        context.transaction_handle,
-        context.incoming_event.binary_sbor_data.clone(),
+        context.transaction_context,
+        context.event.binary_sbor_data.clone(),
     )
     .await
     .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))?;
@@ -117,12 +117,12 @@ pub struct RedemptionEvent {
 
 #[event_handler]
 pub async fn handle_redemption_event(
-    context: EventHandlerContext<AppState, TxHandle>,
+    context: EventHandlerContext<State, TransactionContext>,
     event: RedemptionEvent,
 ) -> Result<(), EventHandlerError> {
     add_to_database(
-        context.transaction_handle,
-        context.incoming_event.binary_sbor_data.clone(),
+        context.transaction_context,
+        context.event.binary_sbor_data.clone(),
     )
     .await
     .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))?;

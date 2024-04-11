@@ -1,4 +1,4 @@
-use crate::models::IncomingTransaction;
+use crate::models::Transaction;
 use async_trait::async_trait;
 use std::fmt::Debug;
 
@@ -8,7 +8,7 @@ use std::fmt::Debug;
 pub trait TransactionStream: Debug {
     async fn next(
         &mut self,
-    ) -> Result<Vec<IncomingTransaction>, TransactionStreamError>;
+    ) -> Result<Vec<Transaction>, TransactionStreamError>;
 }
 
 #[derive(Debug)]
