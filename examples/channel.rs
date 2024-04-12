@@ -12,7 +12,7 @@ use radix_event_stream::{
 use std::env;
 
 #[derive(Debug, Clone)]
-struct AppState {
+struct State {
     number: u64,
 }
 
@@ -26,8 +26,8 @@ pub struct InstantiateEvent {
 }
 
 #[event_handler]
-pub fn handle_instantiate_event(
-    context: EventHandlerContext<AppState>,
+pub async fn handle_instantiate_event(
+    context: EventHandlerContext<State>,
     event: InstantiateEvent,
 ) -> Result<(), EventHandlerError> {
     info!(
@@ -44,8 +44,7 @@ async fn main() {
     env_logger::init();
 
     // Create a new handler registry
-    let mut handler_registry: HandlerRegistry<AppState> =
-        HandlerRegistry::new();
+    let mut handler_registry: HandlerRegistry<State> = HandlerRegistry::new();
 
     // Add the instantiate event handler to the registry
     handler_registry.add_handler(
@@ -92,7 +91,7 @@ async fn main() {
     SimpleTransactionStreamProcessor::run_with(
         channel_stream,
         handler_registry,
-        AppState { number: 1 },
+        State { number: 1 },
     )
     .await
     .unwrap();
