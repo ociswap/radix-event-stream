@@ -1,12 +1,14 @@
-use crate::models::IncomingTransaction;
+use crate::models::Transaction;
+use async_trait::async_trait;
 use std::fmt::Debug;
 
 /// A trait that abstracts a stream of transactions coming
 /// from any source, like a gateway, database, or file.
+#[async_trait]
 pub trait TransactionStream: Debug {
-    fn next(
+    async fn next(
         &mut self,
-    ) -> Result<Vec<IncomingTransaction>, TransactionStreamError>;
+    ) -> Result<Vec<Transaction>, TransactionStreamError>;
 }
 
 #[derive(Debug)]

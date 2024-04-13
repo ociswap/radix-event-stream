@@ -1,9 +1,10 @@
 use crate::{
     encodings::programmatic_json_to_bytes,
-    models::{EventEmitter, IncomingEvent, IncomingTransaction},
+    models::{Event, EventEmitter, Transaction},
     stream::{TransactionStream, TransactionStreamError},
 };
 
+use async_trait::async_trait;
 use radix_client::{
     gateway::{
         models::{
@@ -11,13 +12,13 @@ use radix_client::{
             LedgerStateSelector, Order, TransactionKindFilter,
             TransactionStreamOptIns, TransactionStreamRequestBody,
         },
-        stream::TransactionStreamBlocking,
+        stream::TransactionStreamAsync,
     },
-    GatewayClientBlocking,
+    GatewayClientAsync,
 };
 
-impl Into<IncomingEvent> for radix_client::gateway::models::Event {
-    fn into(self) -> IncomingEvent {
+impl Into<Event> for radix_client::gateway::models::Event {
+    fn into(self) -> Event {
         let emitter = match self.emitter {
             EventEmitterIdentifier::Method { entity, .. } => {
                 EventEmitter::Method {
@@ -32,17 +33,17 @@ impl Into<IncomingEvent> for radix_client::gateway::models::Event {
                 blueprint_name,
             },
         };
-        IncomingEvent {
+        Event {
             name: self.name,
-            emitter: emitter,
+            emitter,
             binary_sbor_data: programmatic_json_to_bytes(&self.data).unwrap(),
         }
     }
 }
 
-impl Into<IncomingTransaction> for CommittedTransactionInfo {
-    fn into(self) -> IncomingTransaction {
-        IncomingTransaction {
+impl Into<Transaction> for CommittedTransactionInfo {
+    fn into(self) -> Transaction {
+        Transaction {
             intent_hash: self.intent_hash.unwrap(),
             state_version: self.state_version,
             confirmed_at: self.confirmed_at,
@@ -59,7 +60,7 @@ impl Into<IncomingTransaction> for CommittedTransactionInfo {
 }
 #[derive(Debug)]
 pub struct GatewayTransactionStream {
-    stream: TransactionStreamBlocking,
+    stream: TransactionStreamAsync,
 }
 impl GatewayTransactionStream {
     pub fn new(
@@ -67,7 +68,7 @@ impl GatewayTransactionStream {
         limit_per_page: u32,
         gateway_url: String,
     ) -> Self {
-        let client = GatewayClientBlocking::new(gateway_url);
+        let client = GatewayClientAsync::new(gateway_url);
         let stream =
             client.new_transaction_stream(TransactionStreamRequestBody {
                 from_ledger_state: Some(LedgerStateSelector {
@@ -88,14 +89,15 @@ impl GatewayTransactionStream {
     }
 }
 
+#[async_trait]
 impl TransactionStream for GatewayTransactionStream {
-    fn next(
+    async fn next(
         &mut self,
-    ) -> Result<Vec<IncomingTransaction>, TransactionStreamError> {
-        let response = self.stream.next().map_err(|err| {
+    ) -> Result<Vec<Transaction>, TransactionStreamError> {
+        let response = self.stream.next().await.map_err(|err| {
             TransactionStreamError::Error(format!("{:?}", err))
         })?;
-        let boxed: Vec<IncomingTransaction> =
+        let boxed: Vec<Transaction> =
             response.items.into_iter().map(|item| item.into()).collect();
         if boxed.is_empty() {
             Err(TransactionStreamError::CaughtUp)

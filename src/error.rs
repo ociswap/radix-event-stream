@@ -10,7 +10,7 @@ pub enum EventHandlerError {
     /// the whole transaction should be retried.
     TransactionRetryError(anyhow::Error),
     /// The event handler encountered an unrecoverable
-    /// error and the process should exit.
+    /// error and the processor should stop processing.
     UnrecoverableError(anyhow::Error),
 }
 
@@ -27,7 +27,7 @@ pub enum TransactionHandlerError {
     /// should be retried directly.
     TransactionRetryError(anyhow::Error),
     /// The transaction handler encountered an unrecoverable
-    /// error and the process should exit.
+    /// error and the processor should stop processing.
     UnrecoverableError(anyhow::Error),
 }
 
@@ -45,4 +45,14 @@ impl From<EventHandlerError> for TransactionHandlerError {
             }
         }
     }
+}
+
+/// Error type which is returned from a processor.
+/// When the processor finishes successfully, it returns Ok(()),
+/// otherwise it returns the UnrecoverableError variant here.
+#[derive(Debug)]
+pub enum TransactionStreamProcessorError {
+    /// The transaction stream processor encountered an unrecoverable
+    /// error and the processor should stop processing.
+    UnrecoverableError(anyhow::Error),
 }

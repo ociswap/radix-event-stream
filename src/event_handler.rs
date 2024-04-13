@@ -1,10 +1,11 @@
+use async_trait::async_trait;
 use dyn_clone::DynClone;
 // use scrypto::prelude::*;
 use std::collections::HashMap;
 
 use crate::{
     error::EventHandlerError,
-    models::{IncomingEvent, IncomingTransaction},
+    models::{Event, Transaction},
 };
 
 /// A registry that stores event handlers.
@@ -13,18 +14,18 @@ use crate::{
 /// event name could be "SwapEvent".
 #[allow(non_camel_case_types)]
 #[derive(Default, Clone)]
-pub struct HandlerRegistry<STATE, TRANSACTION_HANDLE = ()>
+pub struct HandlerRegistry<STATE, TRANSACTION_CONTEXT = ()>
 where
     STATE: Clone,
 {
     pub handlers: HashMap<
         (String, String),
-        Box<dyn EventHandler<STATE, TRANSACTION_HANDLE>>,
+        Box<dyn EventHandler<STATE, TRANSACTION_CONTEXT>>,
     >,
 }
 
 #[allow(non_camel_case_types)]
-impl<STATE, TRANSACTION_HANDLE> HandlerRegistry<STATE, TRANSACTION_HANDLE>
+impl<STATE, TRANSACTION_CONTEXT> HandlerRegistry<STATE, TRANSACTION_CONTEXT>
 where
     STATE: Clone,
 {
@@ -38,7 +39,7 @@ where
         &mut self,
         emitter: &str,
         name: &str,
-        handler: impl EventHandler<STATE, TRANSACTION_HANDLE> + 'static,
+        handler: impl EventHandler<STATE, TRANSACTION_CONTEXT> + 'static,
     ) {
         self.handlers
             .insert((emitter.to_string(), name.to_string()), Box::new(handler));
@@ -48,47 +49,29 @@ where
         &self,
         emitter: &str,
         name: &str,
-    ) -> Option<&Box<dyn EventHandler<STATE, TRANSACTION_HANDLE>>> {
+    ) -> Option<&Box<dyn EventHandler<STATE, TRANSACTION_CONTEXT>>> {
         self.handlers.get(&(emitter.to_string(), name.to_string()))
     }
 }
 
 /// A trait that abstracts an event handler.
 #[allow(non_camel_case_types)]
-pub trait EventHandler<STATE, TRANSACTION_HANDLE>: DynClone
+#[async_trait]
+pub trait EventHandler<STATE, TRANSACTION_CONTEXT>:
+    DynClone + Send + Sync
 where
     STATE: Clone,
 {
-    fn handle(
+    async fn handle(
         &self,
-        input: EventHandlerContext<STATE, TRANSACTION_HANDLE>,
+        input: EventHandlerContext<'_, STATE, TRANSACTION_CONTEXT>,
         event: Vec<u8>,
     ) -> Result<(), EventHandlerError>;
 }
 
-// Implement EventHandler for all functions that have the correct signature F
 #[allow(non_camel_case_types)]
-impl<STATE, TRANSACTION_HANDLE, F> EventHandler<STATE, TRANSACTION_HANDLE> for F
-where
-    F: Fn(
-            EventHandlerContext<STATE, TRANSACTION_HANDLE>,
-            Vec<u8>,
-        ) -> Result<(), EventHandlerError>
-        + Clone,
-    STATE: Clone,
-{
-    fn handle(
-        &self,
-        input: EventHandlerContext<STATE, TRANSACTION_HANDLE>,
-        event: Vec<u8>,
-    ) -> Result<(), EventHandlerError> {
-        self(input, event)
-    }
-}
-
-#[allow(non_camel_case_types)]
-impl<STATE, TRANSACTION_HANDLE> Clone
-    for Box<dyn EventHandler<STATE, TRANSACTION_HANDLE>>
+impl<STATE, TRANSACTION_CONTEXT> Clone
+    for Box<dyn EventHandler<STATE, TRANSACTION_CONTEXT>>
 where
     STATE: Clone,
 {
@@ -100,13 +83,13 @@ where
 /// A struct that holds the context for an event handler,
 /// which is passed to the handler when it is called.
 #[allow(non_camel_case_types)]
-pub struct EventHandlerContext<'a, STATE, TRANSACTION_HANDLE = ()>
+pub struct EventHandlerContext<'a, STATE, TRANSACTION_CONTEXT = ()>
 where
     STATE: Clone,
 {
-    pub app_state: &'a mut STATE,
-    pub transaction: &'a IncomingTransaction,
-    pub transaction_handle: &'a mut TRANSACTION_HANDLE,
-    pub event: &'a IncomingEvent,
-    pub handler_registry: &'a mut HandlerRegistry<STATE, TRANSACTION_HANDLE>,
+    pub state: &'a mut STATE,
+    pub transaction: &'a Transaction,
+    pub event: &'a Event,
+    pub transaction_context: &'a mut TRANSACTION_CONTEXT,
+    pub handler_registry: &'a mut HandlerRegistry<STATE, TRANSACTION_CONTEXT>,
 }
