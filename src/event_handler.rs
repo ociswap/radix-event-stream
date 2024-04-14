@@ -1,56 +1,58 @@
 use async_trait::async_trait;
 use dyn_clone::DynClone;
 // use scrypto::prelude::*;
-use std::collections::HashMap;
+use std::{any::Any, collections::HashMap};
 
 use crate::{
     error::EventHandlerError,
     models::{Event, Transaction},
 };
 
-/// A registry that stores event handlers.
-/// each event handler is identified by the emitter and the event name.
-/// As an example, the emitter could be the address of a component ("component_..."), and the
-/// event name could be "SwapEvent".
-#[allow(non_camel_case_types)]
-#[derive(Default, Clone)]
-pub struct HandlerRegistry<STATE, TRANSACTION_CONTEXT = ()>
-where
-    STATE: Clone,
-{
-    pub handlers: HashMap<
-        (String, String),
-        Box<dyn EventHandler<STATE, TRANSACTION_CONTEXT>>,
-    >,
+/// typeErasedHandlerRegistry is a type-erased version of HandlerRegistry.
+
+#[derive(Default)]
+pub struct HandlerRegistry {
+    pub handlers: HashMap<(String, String), Box<dyn Any + Send + Sync>>,
 }
 
 #[allow(non_camel_case_types)]
-impl<STATE, TRANSACTION_CONTEXT> HandlerRegistry<STATE, TRANSACTION_CONTEXT>
-where
-    STATE: Clone,
-{
+impl HandlerRegistry {
     pub fn new() -> Self {
         HandlerRegistry {
             handlers: HashMap::new(),
         }
     }
 
-    pub fn add_handler(
+    pub fn handler_exists(&self, emitter: &str, name: &str) -> bool {
+        self.handlers
+            .contains_key(&(emitter.to_string(), name.to_string()))
+    }
+
+    pub fn add_handler<STATE: Clone + 'static, TRANSACTION_CONTEXT: 'static>(
         &mut self,
         emitter: &str,
         name: &str,
         handler: impl EventHandler<STATE, TRANSACTION_CONTEXT> + 'static,
     ) {
+        let boxed: Box<dyn EventHandler<STATE, TRANSACTION_CONTEXT> + 'static> =
+            Box::new(handler);
         self.handlers
-            .insert((emitter.to_string(), name.to_string()), Box::new(handler));
+            .insert((emitter.to_string(), name.to_string()), Box::new(boxed));
     }
 
-    pub fn get_handler(
+    pub fn get_handler<STATE: Clone + 'static, TRANSACTION_CONTEXT: 'static>(
         &self,
         emitter: &str,
         name: &str,
     ) -> Option<&Box<dyn EventHandler<STATE, TRANSACTION_CONTEXT>>> {
-        self.handlers.get(&(emitter.to_string(), name.to_string()))
+        let handler =
+            self.handlers.get(&(emitter.to_string(), name.to_string()));
+
+        handler.map(|handler| {
+            handler
+                .downcast_ref::<Box<dyn EventHandler<STATE, TRANSACTION_CONTEXT>>>()
+                .expect("Failed to downcast handler")
+        })
     }
 }
 
@@ -91,5 +93,5 @@ where
     pub transaction: &'a Transaction,
     pub event: &'a Event,
     pub transaction_context: &'a mut TRANSACTION_CONTEXT,
-    pub handler_registry: &'a mut HandlerRegistry<STATE, TRANSACTION_CONTEXT>,
+    pub handler_registry: &'a mut HandlerRegistry,
 }
