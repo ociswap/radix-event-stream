@@ -79,7 +79,7 @@ impl DatabaseFetcher {
         tx: tokio::sync::mpsc::Sender<Transaction>,
     ) -> Result<Self, anyhow::Error> {
         let options = PgConnectOptions::from_str(&database_url)
-            .expect("Failed to parse database URL")
+            .map_err(|err| anyhow::anyhow!("Invalid database URL: {}", err))?
             .disable_statement_logging();
         let connection = sqlx::postgres::PgPool::connect_with(options).await?;
         Ok(DatabaseFetcher {
@@ -92,7 +92,7 @@ impl DatabaseFetcher {
 
     /// Fetches the next batch of transactions from the database.
     async fn next_batch(&mut self) -> Result<Vec<Transaction>, anyhow::Error> {
-        let transactions = sqlx::query_as!(
+        let transactions: Vec<TransactionRecord> = sqlx::query_as!(
             TransactionRecord,
             r#"
                 select
@@ -115,6 +115,7 @@ impl DatabaseFetcher {
         .fetch_all(&self.connection)
         .await?;
 
+        // Convert the database records to the Transaction model
         let transactions: Vec<_> = transactions
             .into_iter()
             .map(|db_transaction| {
@@ -130,7 +131,7 @@ impl DatabaseFetcher {
                             serde_json::from_value::<EventEmitterIdentifier>(
                                 emitter.clone(),
                             )
-                            .unwrap()
+                            .expect("Should be able to decode event emitter")
                             .into(),
                     })
                     .collect();
@@ -143,6 +144,7 @@ impl DatabaseFetcher {
             })
             .collect();
 
+        // Update the state version
         self.state_version = transactions
             .last()
             .map(|transaction| transaction.state_version + 1)

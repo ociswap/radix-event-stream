@@ -158,7 +158,14 @@ where
 
     /// Starts processing transactions from the `TransactionStream`.
     pub async fn run(&mut self) -> Result<(), TransactionStreamProcessorError> {
-        let mut receiver = self.transaction_stream.start().await.unwrap();
+        // Start the transaction stream and get a receiver.
+        // This often involves starting a task that fetches transactions
+        // from a remote source and sends them to the receiver.
+        let mut receiver =
+            self.transaction_stream.start().await.map_err(|error| {
+                TransactionStreamProcessorError::UnrecoverableError(error)
+            })?;
+        // Process transactions as they arrive.
         while let Some(transaction) = receiver.recv().await {
             if self.state_version_last_reported.elapsed().as_secs()
                 > CURRENT_STATE_REPORT_INTERVAL
@@ -178,6 +185,9 @@ where
             }
             self.process_transaction(&transaction).await?;
         }
+        // If the transmitting half of the channel is dropped,
+        // the receiver will return None and we will exit the loop.
+        // The processor will exit gracefully.
         Ok(())
     }
 
@@ -268,8 +278,7 @@ where
         input
             .transaction
             .process_events(input.state, input.handler_registry, &mut ())
-            .await
-            .unwrap();
+            .await?;
         Ok(())
     }
 }

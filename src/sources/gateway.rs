@@ -40,7 +40,9 @@ impl Into<Event> for radix_client::gateway::models::Event {
         Event {
             name: self.name,
             emitter,
-            binary_sbor_data: programmatic_json_to_bytes(&self.data).unwrap(),
+            binary_sbor_data: programmatic_json_to_bytes(&self.data).expect(
+                "Should always able to convert Programmatic JSON to binary SBOR",
+            ),
         }
     }
 }
@@ -48,14 +50,16 @@ impl Into<Event> for radix_client::gateway::models::Event {
 impl Into<Transaction> for CommittedTransactionInfo {
     fn into(self) -> Transaction {
         Transaction {
-            intent_hash: self.intent_hash.unwrap(),
+            intent_hash: self
+                .intent_hash
+                .expect("Transaction should have tx id"),
             state_version: self.state_version,
             confirmed_at: self.confirmed_at,
             events: self
                 .receipt
-                .unwrap()
+                .expect("Transaction should have receipt")
                 .events
-                .unwrap()
+                .expect("Transaction receipt should have events")
                 .into_iter()
                 .map(|event| event.into())
                 .collect(),
