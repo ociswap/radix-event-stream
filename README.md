@@ -64,10 +64,9 @@ Above, we see an event definition used in one of Ociswap's Basic pools. It deriv
 
 ### Step 2: Define a global state.
 
-This will be mutably shared with every transaction handler. It should at least implement Clone. If you need to share this data with other pieces of code you may choose to store items wrapped in Rc, RefCell, Arc, Mutex, etc.
+This will be mutably shared with every transaction handler. If you need to share this data with other pieces of code you may choose to store items wrapped in Rc, RefCell, Arc, Mutex, etc.
 
 ```rust
-#[derive(Clone)]
 struct State {
     instantiate_events_seen: u64
 }
@@ -119,7 +118,7 @@ A concrete example:
 ```Rust
 #[event_handler]
 async fn handle_instantiate_event(
-    context: EventHandlerContext<AppState>,
+    context: EventHandlerContext<State>,
     event: InstantiateEvent,
 ) -> Result<(), EventHandlerError> {
     info!(
@@ -157,8 +156,7 @@ By returning different errors, you may control how the stream behaves. It can re
 Create a handler registry:
 
 ```Rust
-let mut handler_registry: HandlerRegistry<AppState> =
-    HandlerRegistry::new();
+let mut handler_registry = HandlerRegistry::new();
 ```
 
 Add any handlers to the registry, identified by emitters and event names. In this case, we would like to handle `InstantiateEvent` events emitted by Ociswap's Basic pool package address.
@@ -226,7 +224,7 @@ async fn transaction_handler_name(
     // and the global state. It is parametrized by the
     // app state and the transaction context type, but the context is optional,
     // and defaults to the unit type.
-    context: TransactionHandlerContext<YOUR_STATE, YOUR_TRANSACTION_CONTEXT_TYPE>,
+    context: TransactionHandlerContext<YOUR_STATE>,
 ) -> Result<(), TransactionHandlerError> {
     // Do something like start a database transaction
     let mut transaction_context = TransactionContext { tx: start_transaction() }
@@ -267,7 +265,7 @@ Simplest concrete example:
 ```rust
 #[transaction_handler]
 async fn transaction_handler(
-    context: TransactionHandlerContext<AppState, ()>,
+    context: TransactionHandlerContext<State>,
 ) -> Result<(), TransactionHandlerError> {
     // Do something before handling events
     context

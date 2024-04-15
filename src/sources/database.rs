@@ -1,14 +1,12 @@
 use std::{str::FromStr, time::Duration};
 
 use crate::{
-    encodings::encode_bech32m,
     models::{Event, EventEmitter, Transaction},
     stream::TransactionStream,
 };
 
 use async_trait::async_trait;
 use chrono::Utc;
-use radix_engine_common::network::NetworkDefinition;
 use serde::Deserialize;
 use sqlx::{postgres::PgConnectOptions, ConnectOptions};
 use tokio::{sync::mpsc::Receiver, time::timeout};
