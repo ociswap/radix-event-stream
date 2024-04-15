@@ -176,34 +176,29 @@ Note that you can also register new handlers inside a handler. This is necessary
 
 ### Step 5: Pick a source.
 
-The library holds a few different transaction stream sources out of the box: A Radix Gateway stream based on our radix-client crate, a file stream, and a channel stream. It is also quite easy to implement your own custom stream, to allow getting events from a database, for example.
+The library holds a few different transaction stream sources out of the box: A Radix Gateway stream based on our radix-client crate, a database stream which fetches directly from the Gateway PostgreSQL database, a file stream, and a channel stream. It is also possible to implement custom streams.
 
 Let's use the gateway stream:
 
 ```Rust
-    let stream = GatewayTransactionStream::new(
-        1919391, // State version to start at
-        100, // Items per page to request
-        "https://mainnet.radixdlt.com".to_string(),
-    );
+// For some of the included streams, a builder pattern is used.
+let stream = GatewayTransactionStream::new()
+    .gateway_url("https://mainnet.radixdlt.com".to_string())
+    .from_state_version(1919391)
+    .buffer_capacity(1000)
+    .limit_per_page(100);
 ```
 
-A transaction stream implements the `TransactionStream` trait, which has a `next()` method. This method returns a new batch of transactions to process. It can also return one of the following errors:
+A transaction stream implements the `TransactionStream` trait. This trait has a `start()` and a `stop()` method. `start()` may start a new asynchronous task, which pushes `Transaction` items to the `Receiver` which is returned by the method. Having a channel allows the transaction stream to fetch and buffer transactions independently of the rest of the framework.
 
 ```rust
-enum TransactionStreamError {
-    /// The stream is caught up with the latest transactions.
-    /// The processor should wait for new transactions and try again.
-    CaughtUp,
-    /// The stream is finished and there are no more transactions.
-    /// The processor should stop processing transactions.
-    Finished,
-    /// An error occurred while processing the stream.
-    Error(String),
+trait TransactionStream {
+    async fn start(&mut self) -> Result<Receiver<Transaction>, anyhow::Error>;
+    async fn stop(&mut self);
 }
 ```
 
-A gateway stream would never return `Finished`, because there will always be new transactions to handle. A file stream would only return `Finished` when there are no more transactions. In that case, the stream would exit with an Ok() value.
+See `stream.rs` for more information.
 
 ### Step 6: Define a transaction handler and transaction context. (Optional)
 
