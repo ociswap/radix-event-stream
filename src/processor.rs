@@ -25,7 +25,6 @@ const EVENT_RETRY_INTERVAL: u64 = 10;
 pub struct TransactionStreamProcessor<STREAM, STATE>
 where
     STREAM: TransactionStream,
-    STATE: Clone,
 {
     pub transaction_stream: STREAM,
     pub handler_registry: HandlerRegistry,
@@ -38,7 +37,6 @@ where
 impl<STREAM, STATE> TransactionStreamProcessor<STREAM, STATE>
 where
     STREAM: TransactionStream,
-    STATE: Clone,
 {
     /// Creates a new `TransactionStreamProcessor` with the given
     /// `TransactionStream`, `HandlerRegistry`, `TransactionHandler`
@@ -220,7 +218,6 @@ where
 pub struct SimpleTransactionStreamProcessor<STREAM, STATE>
 where
     STREAM: TransactionStream,
-    STATE: Clone,
 {
     processor: TransactionStreamProcessor<STREAM, STATE>,
 }
@@ -229,7 +226,7 @@ where
 impl<STREAM, STATE> SimpleTransactionStreamProcessor<STREAM, STATE>
 where
     STREAM: TransactionStream,
-    STATE: Clone + 'static + Send + Sync,
+    STATE: 'static + Send + Sync,
 {
     pub fn new(
         transaction_stream: STREAM,
@@ -272,7 +269,7 @@ struct DefaultTransactionHandler;
 #[async_trait]
 impl<STATE> TransactionHandler<STATE> for DefaultTransactionHandler
 where
-    STATE: Clone + Send + Sync + 'static,
+    STATE: Send + Sync + 'static,
 {
     async fn handle(
         &self,
@@ -298,15 +295,15 @@ impl Transaction {
     /// Please consider that event handlers may be called multiple times
     /// in this case, so they must be idempotent at least up to the point
     /// where the error occurred.
-    pub async fn process_events<STATE: 'static, TRANSACTION_CONTEXT: 'static>(
+    pub async fn process_events<
+        STATE: 'static,
+        TRANSACTION_CONTEXT: 'static,
+    >(
         &self,
         state: &mut STATE,
         handler_registry: &mut HandlerRegistry,
         transaction_context: &mut TRANSACTION_CONTEXT,
-    ) -> Result<(), EventHandlerError>
-    where
-        STATE: Clone,
-    {
+    ) -> Result<(), EventHandlerError> {
         for event in self.events.iter() {
             let event_handler = {
                 if !handler_registry

@@ -33,7 +33,7 @@ impl HandlerRegistry {
             .contains_key(&(emitter.to_string(), name.to_string()))
     }
 
-    pub fn add_handler<STATE: Clone + 'static, TRANSACTION_CONTEXT: 'static>(
+    pub fn add_handler<STATE: 'static, TRANSACTION_CONTEXT: 'static>(
         &mut self,
         emitter: &str,
         name: &str,
@@ -62,7 +62,7 @@ impl HandlerRegistry {
             .insert((emitter.to_string(), name.to_string()), Box::new(boxed));
     }
 
-    pub fn get_handler<STATE: Clone + 'static, TRANSACTION_CONTEXT: 'static>(
+    pub fn get_handler<STATE: 'static, TRANSACTION_CONTEXT: 'static>(
         &self,
         emitter: &str,
         name: &str,
@@ -93,8 +93,6 @@ impl HandlerRegistry {
 #[async_trait]
 pub trait EventHandler<STATE, TRANSACTION_CONTEXT>:
     DynClone + Send + Sync
-where
-    STATE: Clone,
 {
     async fn handle(
         &self,
@@ -106,8 +104,6 @@ where
 #[allow(non_camel_case_types)]
 impl<STATE, TRANSACTION_CONTEXT> Clone
     for Box<dyn EventHandler<STATE, TRANSACTION_CONTEXT>>
-where
-    STATE: Clone,
 {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
@@ -117,10 +113,7 @@ where
 /// A struct that holds the context for an event handler,
 /// which is passed to the handler when it is called.
 #[allow(non_camel_case_types)]
-pub struct EventHandlerContext<'a, STATE, TRANSACTION_CONTEXT = ()>
-where
-    STATE: Clone,
-{
+pub struct EventHandlerContext<'a, STATE, TRANSACTION_CONTEXT = ()> {
     pub state: &'a mut STATE,
     pub transaction: &'a Transaction,
     pub event: &'a Event,
