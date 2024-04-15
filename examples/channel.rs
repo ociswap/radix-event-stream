@@ -43,7 +43,7 @@ async fn main() {
     env_logger::init();
 
     // Create a new handler registry
-    let mut handler_registry: HandlerRegistry<State> = HandlerRegistry::new();
+    let mut handler_registry = HandlerRegistry::new();
 
     // Add the instantiate event handler to the registry
     handler_registry.add_handler(

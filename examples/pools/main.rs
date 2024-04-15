@@ -49,8 +49,7 @@ async fn main() {
     .unwrap();
 
     // Create a new handler registry for event handlers
-    let mut handler_registry: HandlerRegistry<State, TransactionContext> =
-        HandlerRegistry::new();
+    let mut handler_registry = HandlerRegistry::new();
 
     // Add the 'InstantiateEvent' handler to the registry
     handler_registry.add_handler(
@@ -61,7 +60,7 @@ async fn main() {
 
     #[transaction_handler]
     async fn transaction_handler(
-        context: TransactionHandlerContext<State, TransactionContext>,
+        context: TransactionHandlerContext<State>,
     ) -> Result<(), TransactionHandlerError> {
         let tx = context.state.pool.begin().await.unwrap();
         let mut transaction_context = TransactionContext { transaction: tx };
@@ -98,10 +97,9 @@ async fn main() {
 }
 
 async fn run_from_file(
-    handler_registry: HandlerRegistry<State, TransactionContext>,
+    handler_registry: HandlerRegistry,
     pool: Pool<Sqlite>,
-    transaction_handler: impl TransactionHandler<State, TransactionContext>
-        + 'static,
+    transaction_handler: impl TransactionHandler<State> + 'static,
 ) {
     // Create a new transaction stream from a file, which the processor will use
     // as a source of transactions.
@@ -125,10 +123,9 @@ async fn run_from_file(
 }
 
 async fn run_from_gateway(
-    handler_registry: HandlerRegistry<State, TransactionContext>,
+    handler_registry: HandlerRegistry,
     pool: Pool<Sqlite>,
-    transaction_handler: impl TransactionHandler<State, TransactionContext>
-        + 'static,
+    transaction_handler: impl TransactionHandler<State> + 'static,
 ) {
     // Create a new transaction stream, which the processor will use
     // as a source of transactions.
@@ -154,10 +151,9 @@ async fn run_from_gateway(
 }
 
 async fn run_from_database(
-    handler_registry: HandlerRegistry<State, TransactionContext>,
+    handler_registry: HandlerRegistry,
     pool: Pool<Sqlite>,
-    transaction_handler: impl TransactionHandler<State, TransactionContext>
-        + 'static,
+    transaction_handler: impl TransactionHandler<State> + 'static,
 ) {
     // Create a new transaction stream, which the processor will use
     // as a source of transactions.

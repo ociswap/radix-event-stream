@@ -22,22 +22,20 @@ const EVENT_RETRY_INTERVAL: u64 = 10;
 /// using the `HandlerRegistry` and then call `run` to start
 /// processing transactions.
 #[allow(non_camel_case_types)]
-pub struct TransactionStreamProcessor<STREAM, STATE, TRANSACTION_CONTEXT>
+pub struct TransactionStreamProcessor<STREAM, STATE>
 where
     STREAM: TransactionStream,
     STATE: Clone,
 {
     pub transaction_stream: STREAM,
-    pub handler_registry: HandlerRegistry<STATE, TRANSACTION_CONTEXT>,
-    pub transaction_handler:
-        Box<dyn TransactionHandler<STATE, TRANSACTION_CONTEXT>>,
+    pub handler_registry: HandlerRegistry,
+    pub transaction_handler: Box<dyn TransactionHandler<STATE>>,
     pub state: STATE,
     pub state_version_last_reported: Instant,
 }
 
 #[allow(non_camel_case_types)]
-impl<STREAM, STATE, TRANSACTION_CONTEXT>
-    TransactionStreamProcessor<STREAM, STATE, TRANSACTION_CONTEXT>
+impl<STREAM, STATE> TransactionStreamProcessor<STREAM, STATE>
 where
     STREAM: TransactionStream,
     STATE: Clone,
@@ -47,9 +45,8 @@ where
     /// and initial `STATE`.
     pub fn new(
         transaction_stream: STREAM,
-        handler_registry: HandlerRegistry<STATE, TRANSACTION_CONTEXT>,
-        transaction_handler: impl TransactionHandler<STATE, TRANSACTION_CONTEXT>
-            + 'static,
+        handler_registry: HandlerRegistry,
+        transaction_handler: impl TransactionHandler<STATE> + 'static,
         state: STATE,
     ) -> Self {
         TransactionStreamProcessor {
@@ -70,8 +67,7 @@ where
         // that have a handler registered.
         let handler_exists = transaction.events.iter().any(|event| {
             self.handler_registry
-                .get_handler(event.emitter.address(), &event.name)
-                .is_some()
+                .handler_exists(event.emitter.address(), &event.name)
         });
         if !handler_exists {
             // If there are no handlers for any of the events in this transaction,
@@ -202,9 +198,8 @@ where
     // Shorthand for running the processor with the required parameters.
     pub async fn run_with(
         transaction_stream: STREAM,
-        handler_registry: HandlerRegistry<STATE, TRANSACTION_CONTEXT>,
-        transaction_handler: impl TransactionHandler<STATE, TRANSACTION_CONTEXT>
-            + 'static,
+        handler_registry: HandlerRegistry,
+        transaction_handler: impl TransactionHandler<STATE> + 'static,
         state: STATE,
     ) -> Result<(), TransactionStreamProcessorError> {
         let mut processor = TransactionStreamProcessor::new(
@@ -227,7 +222,7 @@ where
     STREAM: TransactionStream,
     STATE: Clone,
 {
-    processor: TransactionStreamProcessor<STREAM, STATE, ()>,
+    processor: TransactionStreamProcessor<STREAM, STATE>,
 }
 
 #[allow(non_camel_case_types)]
@@ -238,10 +233,10 @@ where
 {
     pub fn new(
         transaction_stream: STREAM,
-        handler_registry: HandlerRegistry<STATE, ()>,
+        handler_registry: HandlerRegistry,
         state: STATE,
     ) -> Self {
-        let processor: TransactionStreamProcessor<STREAM, STATE, ()> =
+        let processor: TransactionStreamProcessor<STREAM, STATE> =
             TransactionStreamProcessor::new(
                 transaction_stream,
                 handler_registry,
@@ -257,7 +252,7 @@ where
 
     pub async fn run_with(
         transaction_stream: STREAM,
-        handler_registry: HandlerRegistry<STATE, ()>,
+        handler_registry: HandlerRegistry,
         state: STATE,
     ) -> Result<(), TransactionStreamProcessorError> {
         let mut processor = SimpleTransactionStreamProcessor::new(
@@ -275,13 +270,13 @@ where
 struct DefaultTransactionHandler;
 
 #[async_trait]
-impl<STATE> TransactionHandler<STATE, ()> for DefaultTransactionHandler
+impl<STATE> TransactionHandler<STATE> for DefaultTransactionHandler
 where
-    STATE: Clone + Send + Sync,
+    STATE: Clone + Send + Sync + 'static,
 {
     async fn handle(
         &self,
-        input: TransactionHandlerContext<'_, STATE, ()>,
+        input: TransactionHandlerContext<'_, STATE>,
     ) -> Result<(), TransactionHandlerError> {
         input
             .transaction
@@ -303,10 +298,10 @@ impl Transaction {
     /// Please consider that event handlers may be called multiple times
     /// in this case, so they must be idempotent at least up to the point
     /// where the error occurred.
-    pub async fn process_events<STATE, TRANSACTION_CONTEXT>(
+    pub async fn process_events<STATE: 'static, TRANSACTION_CONTEXT: 'static>(
         &self,
         state: &mut STATE,
-        handler_registry: &mut HandlerRegistry<STATE, TRANSACTION_CONTEXT>,
+        handler_registry: &mut HandlerRegistry,
         transaction_context: &mut TRANSACTION_CONTEXT,
     ) -> Result<(), EventHandlerError>
     where
@@ -314,13 +309,17 @@ impl Transaction {
     {
         for event in self.events.iter() {
             let event_handler = {
-                let handler = match handler_registry
-                    .get_handler(event.emitter.address(), &event.name)
+                if !handler_registry
+                    .handler_exists(event.emitter.address(), &event.name)
                 {
-                    Some(handler) => handler,
-                    None => continue,
-                };
-                handler
+                    continue;
+                }
+                handler_registry
+                    .get_handler::<STATE, TRANSACTION_CONTEXT>(
+                        event.emitter.address(),
+                        &event.name,
+                    )
+                    .unwrap()
             };
             let event_handler = event_handler.clone();
             info!(
