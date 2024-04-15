@@ -1,12 +1,14 @@
 use std::{str::FromStr, time::Duration};
 
 use crate::{
+    encodings::encode_bech32m,
     models::{Event, EventEmitter, Transaction},
     stream::TransactionStream,
 };
 
 use async_trait::async_trait;
 use chrono::Utc;
+use radix_engine_common::network::NetworkDefinition;
 use serde::Deserialize;
 use sqlx::{postgres::PgConnectOptions, ConnectOptions};
 use tokio::{sync::mpsc::Receiver, time::timeout};
@@ -121,7 +123,7 @@ impl DatabaseFetcher {
                     receipt_event_emitters,
                     receipt_event_sbors,
                     receipt_event_names,
-                    transaction_tree_hash
+                    intent_hash
                 from
                     ledger_transactions
                 where discriminator = 'user' and receipt_status != 'failed' and state_version >= $2
@@ -156,7 +158,7 @@ impl DatabaseFetcher {
                     .collect();
                 Transaction {
                     state_version: db_transaction.state_version as u64,
-                    intent_hash: db_transaction.transaction_tree_hash,
+                    intent_hash: db_transaction.intent_hash.unwrap(),
                     confirmed_at: Some(db_transaction.round_timestamp),
                     events,
                 }
@@ -232,7 +234,7 @@ struct TransactionRecord {
     receipt_event_emitters: Vec<serde_json::Value>,
     receipt_event_sbors: Vec<Vec<u8>>,
     receipt_event_names: Vec<String>,
-    transaction_tree_hash: String,
+    intent_hash: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -245,6 +247,11 @@ pub enum EventEmitterIdentifier {
         package_address: String,
         blueprint_name: String,
     },
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct EntityReference {
+    pub entity_address: String,
 }
 
 impl From<EventEmitterIdentifier> for EventEmitter {
@@ -262,36 +269,4 @@ impl From<EventEmitterIdentifier> for EventEmitter {
             },
         }
     }
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct EntityReference {
-    pub entity_type: EntityType,
-    pub is_global: bool,
-    pub entity_address: String,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub enum EntityType {
-    GlobalPackage,
-    GlobalConsensusManager,
-    GlobalValidator,
-    GlobalGenericComponent,
-    GlobalAccount,
-    GlobalIdentity,
-    GlobalAccessController,
-    GlobalVirtualSecp256k1Account,
-    GlobalVirtualSecp256k1Identity,
-    GlobalVirtualEd25519Account,
-    GlobalVirtualEd25519Identity,
-    GlobalFungibleResource,
-    InternalFungibleVault,
-    GlobalNonFungibleResource,
-    InternalNonFungibleVault,
-    InternalGenericComponent,
-    InternalKeyValueStore,
-    GlobalOneResourcePool,
-    GlobalTwoResourcePool,
-    GlobalMultiResourcePool,
-    GlobalTransactionTracker,
 }
