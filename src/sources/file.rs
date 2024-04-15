@@ -68,6 +68,6 @@ impl TransactionStream for FileTransactionStream {
         });
         Ok(rx)
     }
-
+    // no task is spawned, so no need to do anything on stop
     async fn stop(&mut self) {}
 }

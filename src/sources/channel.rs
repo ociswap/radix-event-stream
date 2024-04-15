@@ -29,5 +29,6 @@ impl TransactionStream for ChannelTransactionStream {
     async fn start(&mut self) -> Result<Receiver<Transaction>, anyhow::Error> {
         Ok(self.receiver.take().expect("Receiver already taken"))
     }
+    // no task is spawned, so no need to do anything on stop
     async fn stop(&mut self) {}
 }

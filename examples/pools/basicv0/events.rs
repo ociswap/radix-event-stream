@@ -44,7 +44,6 @@ async fn handle_instantiate_event(
         &context.state.network,
     )
     .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))?;
-
     add_to_database(
         context.transaction_context,
         context.event.binary_sbor_data.clone(),

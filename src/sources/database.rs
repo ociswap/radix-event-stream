@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{str::FromStr, time::Duration};
 
 use crate::{
     models::{Event, EventEmitter, Transaction},
@@ -9,10 +9,10 @@ use async_trait::async_trait;
 use chrono::Utc;
 use serde::Deserialize;
 use sqlx::{postgres::PgConnectOptions, ConnectOptions};
-use tokio::sync::mpsc::Receiver;
+use tokio::{sync::mpsc::Receiver, time::timeout};
 
-const CAUGHT_UP_TIMEOUT_MS: u64 = 500;
-
+const DEFAULT_CAUGHT_UP_TIMEOUT_MS: u64 = 500;
+const DEFAULT_QUERY_TIMEOUT_MS: u64 = 30_000;
 const DEFAULT_STATE_VERSION: u64 = 1;
 const DEFAULT_PAGE_SIZE: u32 = 100000;
 const DEFAULT_BUFFER_CAPACITY: u64 = 1000000;
@@ -30,6 +30,8 @@ pub struct DatabaseTransactionStream {
     handle: Option<tokio::task::JoinHandle<()>>,
     limit_per_page: u32,
     buffer_capacity: u64,
+    caught_up_timeout_ms: u64,
+    query_timeout_ms: u64,
     database_url: String,
 }
 
@@ -40,6 +42,8 @@ impl DatabaseTransactionStream {
             limit_per_page: DEFAULT_PAGE_SIZE,
             handle: None,
             buffer_capacity: DEFAULT_BUFFER_CAPACITY,
+            caught_up_timeout_ms: DEFAULT_CAUGHT_UP_TIMEOUT_MS,
+            query_timeout_ms: DEFAULT_QUERY_TIMEOUT_MS,
             database_url,
         }
     }
@@ -58,6 +62,16 @@ impl DatabaseTransactionStream {
         self.buffer_capacity = capacity;
         self
     }
+
+    pub fn caught_up_timeout_ms(mut self, timeout_ms: u64) -> Self {
+        self.caught_up_timeout_ms = timeout_ms;
+        self
+    }
+
+    pub fn query_timeout_ms(mut self, timeout_ms: u64) -> Self {
+        self.query_timeout_ms = timeout_ms;
+        self
+    }
 }
 
 /// A helper which is passed to the new task created by the stream.
@@ -68,6 +82,8 @@ struct DatabaseFetcher {
     connection: sqlx::Pool<sqlx::Postgres>,
     limit_per_page: u32,
     state_version: u64,
+    caught_up_timeout_ms: u64,
+    query_timeout_ms: u64,
     tx: tokio::sync::mpsc::Sender<Transaction>,
 }
 
@@ -76,6 +92,8 @@ impl DatabaseFetcher {
         database_url: String,
         limit_per_page: u32,
         state_version: u64,
+        caught_up_timeout_ms: u64,
+        query_timeout_ms: u64,
         tx: tokio::sync::mpsc::Sender<Transaction>,
     ) -> Result<Self, anyhow::Error> {
         let options = PgConnectOptions::from_str(&database_url)
@@ -86,24 +104,26 @@ impl DatabaseFetcher {
             connection,
             limit_per_page,
             state_version,
+            caught_up_timeout_ms,
+            query_timeout_ms,
             tx: tx,
         })
     }
 
     /// Fetches the next batch of transactions from the database.
     async fn next_batch(&mut self) -> Result<Vec<Transaction>, anyhow::Error> {
-        let transactions: Vec<TransactionRecord> = sqlx::query_as!(
+        let transactions: Vec<TransactionRecord> = timeout(Duration::from_millis(self.query_timeout_ms), sqlx::query_as!(
             TransactionRecord,
             r#"
                 select
-                state_version,
-                round_timestamp,
-                receipt_event_emitters,
-                receipt_event_sbors,
-                receipt_event_names,
-                transaction_tree_hash
+                    state_version,
+                    round_timestamp,
+                    receipt_event_emitters,
+                    receipt_event_sbors,
+                    receipt_event_names,
+                    transaction_tree_hash
                 from
-                ledger_transactions
+                    ledger_transactions
                 where discriminator = 'user' and receipt_status != 'failed' and state_version >= $2
                 order by state_version asc
                 limit
@@ -112,8 +132,7 @@ impl DatabaseFetcher {
             self.limit_per_page as i32,
             self.state_version as i64
         )
-        .fetch_all(&self.connection)
-        .await?;
+        .fetch_all(&self.connection)).await??;
 
         // Convert the database records to the Transaction model
         let transactions: Vec<_> = transactions
@@ -157,13 +176,16 @@ impl DatabaseFetcher {
         loop {
             let mut response = self.next_batch().await;
             while let Err(err) = response {
-                log::error!("Error fetching transactions: {:?}", err);
+                log::warn!(
+                    "Error fetching transactions: {:?}\n Trying again...",
+                    err
+                );
                 response = self.next_batch().await;
             }
             let transactions = response.unwrap();
             if transactions.is_empty() {
                 tokio::time::sleep(tokio::time::Duration::from_millis(
-                    CAUGHT_UP_TIMEOUT_MS,
+                    self.caught_up_timeout_ms,
                 ))
                 .await;
             }
@@ -186,6 +208,8 @@ impl TransactionStream for DatabaseTransactionStream {
             self.database_url.clone(),
             self.limit_per_page,
             self.state_version,
+            self.caught_up_timeout_ms,
+            self.query_timeout_ms,
             tx,
         )
         .await?;

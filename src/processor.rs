@@ -65,6 +65,7 @@ where
         &mut self,
         transaction: &Transaction,
     ) -> Result<(), TransactionStreamProcessorError> {
+        let before = Instant::now();
         // Find out if there are any events inside this transaction
         // that have a handler registered.
         let handler_exists = transaction.events.iter().any(|event| {
@@ -147,7 +148,14 @@ where
                 }
             }
         }
-        info!("{}", "###### END TRANSACTION ######".bright_green());
+        info!(
+            "{}",
+            format!(
+                "###### END TRANSACTION - HANDLED IN {}ms ######",
+                before.elapsed().as_millis()
+            )
+            .bright_green()
+        );
         info!(
             "{}",
             "--------------------------------------------------------"

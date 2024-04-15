@@ -14,8 +14,7 @@ use radix_client::{
 };
 use tokio::sync::mpsc::{Receiver, Sender};
 
-const CAUGHT_UP_TIMEOUT_MS: u64 = 500;
-
+const DEFAULT_CAUGHT_UP_TIMEOUT_MS: u64 = 500;
 const PUBLIC_MAINNET_GATEWAY_URL: &str = "https://mainnet.radixdlt.com";
 const DEFAULT_STATE_VERSION: u64 = 1;
 const DEFAULT_PAGE_SIZE: u32 = 100;
@@ -72,6 +71,7 @@ pub struct GatewayTransactionStream {
     from_state_version: u64,
     limit_per_page: u32,
     buffer_capacity: u64,
+    caught_up_timeout_ms: u64,
     handle: Option<tokio::task::JoinHandle<()>>,
 }
 
@@ -82,6 +82,7 @@ impl GatewayTransactionStream {
             from_state_version: DEFAULT_STATE_VERSION,
             limit_per_page: DEFAULT_PAGE_SIZE,
             buffer_capacity: DEFAULT_BUFFER_CAPACITY,
+            caught_up_timeout_ms: DEFAULT_CAUGHT_UP_TIMEOUT_MS,
             handle: None,
         }
     }
@@ -105,10 +106,16 @@ impl GatewayTransactionStream {
         self.buffer_capacity = buffer_capacity;
         self
     }
+
+    pub fn caught_up_timeout_ms(mut self, caught_up_timeout_ms: u64) -> Self {
+        self.caught_up_timeout_ms = caught_up_timeout_ms;
+        self
+    }
 }
 
 struct GatewayFetcher {
     stream: TransactionStreamAsync,
+    caught_up_timeout_ms: u64,
     tx: Sender<Transaction>,
 }
 
@@ -117,6 +124,7 @@ impl GatewayFetcher {
         gateway_url: String,
         from_state_version: u64,
         limit_per_page: u32,
+        caught_up_timeout_ms: u64,
         tx: Sender<Transaction>,
     ) -> Self {
         let client = GatewayClientAsync::new(gateway_url);
@@ -125,20 +133,27 @@ impl GatewayFetcher {
             from_state_version,
             limit_per_page,
         );
-        GatewayFetcher { stream, tx }
+        GatewayFetcher {
+            stream,
+            tx,
+            caught_up_timeout_ms,
+        }
     }
 
     async fn run(&mut self) {
         loop {
             let mut response = self.stream.next().await;
             while let Err(err) = response {
-                log::error!("Error fetching transactions: {:?}", err);
+                log::warn!(
+                    "Error fetching transactions: {:?}\n Trying again...",
+                    err
+                );
                 response = self.stream.next().await;
             }
             let response = response.unwrap();
             if response.items.is_empty() {
                 tokio::time::sleep(tokio::time::Duration::from_millis(
-                    CAUGHT_UP_TIMEOUT_MS,
+                    self.caught_up_timeout_ms,
                 ))
                 .await;
             }
@@ -163,6 +178,7 @@ impl TransactionStream for GatewayTransactionStream {
             self.gateway_url.clone(),
             self.from_state_version,
             self.limit_per_page,
+            self.caught_up_timeout_ms,
             tx,
         );
         let handle = tokio::spawn(async move { fetcher.run().await });
