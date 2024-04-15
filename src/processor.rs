@@ -90,7 +90,7 @@ where
         );
 
         // Keep trying to handle the transaction in case
-        // the user requests this through a TransactionHandlerError.
+        // the handler requests this through a TransactionHandlerError.
         while let Err(err) = self
             .transaction_handler
             .handle(TransactionHandlerContext {
@@ -116,16 +116,16 @@ where
                         TRANSACTION_RETRY_INTERVAL,
                     ));
                     info!(
-                                "{}",
-                                format!(
-                                    "RETRYING TRANSACTION - {:#?} - {}",
-                                    transaction.state_version,
-                                    transaction.confirmed_at
-                                        .expect("When handling a transaction it should always have a timestamp")
-                                        .to_rfc3339()
-                                )
-                                .bright_yellow()
-                            );
+                        "{}",
+                        format!(
+                            "RETRYING TRANSACTION - {:#?} - {}",
+                            transaction.state_version,
+                            transaction.confirmed_at
+                                .expect("When handling a transaction it should always have a timestamp")
+                                .to_rfc3339()
+                        )
+                        .bright_yellow()
+                    );
                     continue;
                 }
                 TransactionHandlerError::UnrecoverableError(err) => {
