@@ -106,7 +106,7 @@ impl DatabaseFetcher {
             state_version,
             caught_up_timeout_ms,
             query_timeout_ms,
-            tx: tx,
+            tx,
         })
     }
 
@@ -158,7 +158,7 @@ impl DatabaseFetcher {
                     state_version: db_transaction.state_version as u64,
                     intent_hash: db_transaction.transaction_tree_hash,
                     confirmed_at: Some(db_transaction.round_timestamp),
-                    events: events,
+                    events,
                 }
             })
             .collect();
