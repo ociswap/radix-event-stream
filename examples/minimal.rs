@@ -53,9 +53,10 @@ async fn main() {
     // Create a new transaction stream, which the processor will use
     // as a source of transactions.
     let stream = GatewayTransactionStream::new(
-        1919391,
-        100,
+        71500000,
         "https://mainnet.radixdlt.com".to_string(),
+        100,
+        1000,
     );
 
     // Start with parameters.

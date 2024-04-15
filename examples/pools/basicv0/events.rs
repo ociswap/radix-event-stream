@@ -5,7 +5,7 @@ use radix_engine_common::{
     ScryptoSbor,
 };
 use radix_event_stream::macros::event_handler;
-use radix_event_stream::{encodings::encode_bech32, error::EventHandlerError};
+use radix_event_stream::{encodings::encode_bech32m, error::EventHandlerError};
 use sbor::rust::collections::IndexMap;
 
 async fn add_to_database(
@@ -34,12 +34,12 @@ async fn handle_instantiate_event(
     context: EventHandlerContext<State, TransactionContext>,
     event: InstantiateEvent,
 ) -> Result<(), EventHandlerError> {
-    let component_address = encode_bech32(
+    let component_address = encode_bech32m(
         event.pool_address.as_node_id().as_bytes(),
         &context.state.network,
     )
     .map_err(|err| EventHandlerError::EventRetryError(err.into()))?;
-    let native_address = encode_bech32(
+    let native_address = encode_bech32m(
         event.liquidity_pool_address.as_node_id().as_bytes(),
         &context.state.network,
     )

@@ -15,9 +15,7 @@ radix-engine-common = { git = "https://github.com/radixdlt/radixdlt-scrypto", re
 sbor = { git = "https://github.com/radixdlt/radixdlt-scrypto", rev = "038ddee8b0f57aa90e36375c69946c4eb634efeb", features = [
     "serde",
 ] }
-radix-client = { git = "https://github.com/ociswap/radix-client", branch = "init-push", features = [
-    "gateway",
-] }
+radix-client = { git = "https://github.com/ociswap/radix-client", branch = "improve-builder-design" }
 
 handler_macro = { path = "./handler_macro" }
 
@@ -32,7 +30,13 @@ dyn-clone = "1.0.17"
 anyhow = "1.0.81"
 async-trait = "0.1.79"
 tokio = { version = "1.37.0", features = ["full"] }
+sqlx = { version = "0.7.4", features = [
+    "postgres",
+    "sqlite",
+    "time",
+    "runtime-tokio",
+    "chrono",
+] }
 
 [dev-dependencies]
 env_logger = "0.11.3"
-sqlx = { version = "0.7.4", features = ["sqlite", "runtime-tokio"] }

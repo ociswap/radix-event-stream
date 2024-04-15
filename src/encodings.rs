@@ -31,10 +31,10 @@ pub fn programmatic_json_to_bytes(
     Ok(string_representation.to_vec())
 }
 
-/// Encode a byte slice into a bech32 string representation.
+/// Encode a byte slice into a bech32m string representation.
 /// Useful for easily encoding addresses to the proper network
-/// string format.
-pub fn encode_bech32(
+/// string format.e
+pub fn encode_bech32m(
     data: &[u8],
     network: &NetworkDefinition,
 ) -> Result<String, AddressBech32EncodeError> {

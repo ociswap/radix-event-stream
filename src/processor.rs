@@ -5,13 +5,17 @@ use crate::{
     },
     event_handler::{EventHandlerContext, HandlerRegistry},
     models::Transaction,
-    stream::{TransactionStream, TransactionStreamError},
+    stream::TransactionStream,
     transaction_handler::{TransactionHandler, TransactionHandlerContext},
 };
 use async_trait::async_trait;
 use colored::Colorize;
 use log::{error, info};
-use std::thread::sleep;
+use std::{thread::sleep, time::Instant};
+
+const CURRENT_STATE_REPORT_INTERVAL: u64 = 60;
+const TRANSACTION_RETRY_INTERVAL: u64 = 10;
+const EVENT_RETRY_INTERVAL: u64 = 10;
 
 /// Uses a `TransactionStream` to process transactions and
 /// events using a `HandlerRegistry`. Register event handlers
@@ -28,6 +32,7 @@ where
     pub transaction_handler:
         Box<dyn TransactionHandler<STATE, TRANSACTION_CONTEXT>>,
     pub state: STATE,
+    pub state_version_last_reported: Instant,
 }
 
 #[allow(non_camel_case_types)]
@@ -52,6 +57,7 @@ where
             handler_registry,
             transaction_handler: Box::new(transaction_handler),
             state,
+            state_version_last_reported: Instant::now(),
         }
     }
 
@@ -108,9 +114,12 @@ where
                     );
                     info!(
                         "{}",
-                        "RETRYING TRANSACTION IN 10 SECONDS\n".bright_yellow()
+                        format!("RETRYING TRANSACTION IN {TRANSACTION_RETRY_INTERVAL} SECONDS\n")
+                            .bright_yellow()
                     );
-                    sleep(std::time::Duration::from_secs(10));
+                    sleep(std::time::Duration::from_secs(
+                        TRANSACTION_RETRY_INTERVAL,
+                    ));
                     info!(
                                 "{}",
                                 format!(
@@ -149,36 +158,27 @@ where
 
     /// Starts processing transactions from the `TransactionStream`.
     pub async fn run(&mut self) -> Result<(), TransactionStreamProcessorError> {
-        // Keep processing in an infinite loop.
-        loop {
-            let transactions = match self.transaction_stream.next().await {
-                Err(error) => match error {
-                    TransactionStreamError::CaughtUp => {
-                        info!("No more transactions, sleeping for 1 second...");
-                        std::thread::sleep(std::time::Duration::from_secs(1));
-                        continue;
-                    }
-                    TransactionStreamError::Finished => {
-                        info!(
-                            "{}",
-                            "Finished processing transactions".bright_red()
-                        );
-                        return Ok(());
-                    }
-                    TransactionStreamError::Error(error) => {
-                        error!("Error while getting transactions: {}", error);
-                        std::thread::sleep(std::time::Duration::from_secs(1));
-                        continue;
-                    }
-                },
-                Ok(transactions) => transactions,
-            };
-
-            // Process each transaction.
-            for transaction in transactions.iter() {
-                self.process_transaction(transaction).await?;
+        let mut receiver = self.transaction_stream.start().await.unwrap();
+        while let Some(transaction) = receiver.recv().await {
+            if self.state_version_last_reported.elapsed().as_secs()
+                > CURRENT_STATE_REPORT_INTERVAL
+            {
+                info!(
+                    "{}",
+                    format!(
+                        "HANDLED UP TO: {} - {}",
+                        transaction.state_version,
+                        transaction.confirmed_at
+                            .expect("When handling a transaction it should always have a timestamp")
+                            .format("%a %d-%m-%Y %H:%M")
+                    )
+                    .bright_blue()
+                );
+                self.state_version_last_reported = Instant::now();
             }
+            self.process_transaction(&transaction).await?;
         }
+        Ok(())
     }
 
     // Shorthand for running the processor with the required parameters.
@@ -330,8 +330,16 @@ impl Transaction {
                             format!("ERROR HANDLING EVENT: {}", e).bright_red()
                         );
 
-                        info!("{}", "RETRYING IN 10 SECONDS\n".bright_yellow());
-                        sleep(std::time::Duration::from_secs(10));
+                        info!(
+                            "{}",
+                            format!(
+                                "RETRYING IN {EVENT_RETRY_INTERVAL} SECONDS\n"
+                            )
+                            .bright_yellow()
+                        );
+                        sleep(std::time::Duration::from_secs(
+                            EVENT_RETRY_INTERVAL,
+                        ));
                         info!(
                             "{}",
                             format!("RETRYING HANDLING EVENT: {}", event.name)

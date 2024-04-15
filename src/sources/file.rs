@@ -2,11 +2,9 @@ use std::{fs::File, path::Path};
 
 use async_trait::async_trait;
 use serde::Deserialize;
+use tokio::sync::mpsc::Receiver;
 
-use crate::{
-    models::Transaction,
-    stream::{TransactionStream, TransactionStreamError},
-};
+use crate::{models::Transaction, stream::TransactionStream};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct FileTransaction {
@@ -58,19 +56,18 @@ impl FileTransactionStream {
 
 #[async_trait]
 impl TransactionStream for FileTransactionStream {
-    async fn next(
-        &mut self,
-    ) -> Result<Vec<Transaction>, TransactionStreamError> {
-        if self.transactions.is_empty() {
-            return Err(TransactionStreamError::Finished);
-        }
-
-        let transactions = self.transactions.clone();
-        self.transactions.clear();
-        let transactions: Vec<Transaction> = transactions
-            .into_iter()
-            .map(|transaction| transaction.into())
-            .collect();
-        Ok(transactions)
+    async fn start(&mut self) -> Result<Receiver<Transaction>, anyhow::Error> {
+        let (tx, rx) = tokio::sync::mpsc::channel(32);
+        let mut transactions = self.transactions.clone();
+        tokio::spawn(async move {
+            for transaction in transactions.drain(..) {
+                if tx.send(transaction.into()).await.is_err() {
+                    break;
+                }
+            }
+        });
+        Ok(rx)
     }
+
+    async fn stop(&mut self) {}
 }

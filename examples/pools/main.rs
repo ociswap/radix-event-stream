@@ -4,6 +4,7 @@ use crate::basicv0::events;
 use log::error;
 use radix_engine_common::network::NetworkDefinition;
 use radix_event_stream::macros::transaction_handler;
+use radix_event_stream::sources::database::DatabaseTransactionStream;
 use radix_event_stream::transaction_handler::TransactionHandler;
 use radix_event_stream::{
     event_handler::HandlerRegistry,
@@ -87,6 +88,9 @@ async fn main() {
         "gateway" => {
             run_from_gateway(handler_registry, pool, transaction_handler).await
         }
+        "database" => {
+            run_from_database(handler_registry, pool, transaction_handler).await
+        }
         _ => {
             unreachable!();
         }
@@ -130,9 +134,41 @@ async fn run_from_gateway(
     // as a source of transactions.
     let stream = GatewayTransactionStream::new(
         1919391,
-        100,
         "https://mainnet.radixdlt.com".to_string(),
+        100,
+        1000,
     );
+
+    // Start with parameters.
+    TransactionStreamProcessor::run_with(
+        stream,
+        handler_registry,
+        transaction_handler,
+        State {
+            number: 0,
+            pool: Arc::new(pool),
+            network: NetworkDefinition::mainnet(),
+        },
+    )
+    .await
+    .unwrap();
+}
+
+async fn run_from_database(
+    handler_registry: HandlerRegistry<State, TransactionContext>,
+    pool: Pool<Sqlite>,
+    transaction_handler: impl TransactionHandler<State, TransactionContext>
+        + 'static,
+) {
+    // Create a new transaction stream, which the processor will use
+    // as a source of transactions.
+    let stream = DatabaseTransactionStream::new(
+        "postgresql://radix:radix@db.radix.live/radix_ledger".to_string(),
+        1919391,
+        10000,
+        1000000,
+    )
+    .await;
 
     // Start with parameters.
     TransactionStreamProcessor::run_with(
