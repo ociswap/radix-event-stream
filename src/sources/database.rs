@@ -13,6 +13,10 @@ use tokio::sync::mpsc::Receiver;
 
 const CAUGHT_UP_TIMEOUT_MS: u64 = 500;
 
+const DEFAULT_STATE_VERSION: u64 = 1;
+const DEFAULT_PAGE_SIZE: u32 = 100000;
+const DEFAULT_BUFFER_CAPACITY: u64 = 1000000;
+
 /// A transaction stream that fetches transactions directly from
 /// the PostgreSQL database associated with a Radix Gateway.
 /// It's more difficult to get access to a Radix Gateway database
@@ -25,24 +29,34 @@ pub struct DatabaseTransactionStream {
     state_version: u64,
     handle: Option<tokio::task::JoinHandle<()>>,
     limit_per_page: u32,
-    capacity: u64,
+    buffer_capacity: u64,
     database_url: String,
 }
 
 impl DatabaseTransactionStream {
-    pub async fn new(
-        database_url: String,
-        from_state_version: u64,
-        limit_per_page: u32,
-        capacity: u64,
-    ) -> Self {
+    pub fn new(database_url: String) -> Self {
         DatabaseTransactionStream {
-            state_version: from_state_version,
-            limit_per_page,
+            state_version: DEFAULT_STATE_VERSION,
+            limit_per_page: DEFAULT_PAGE_SIZE,
             handle: None,
-            capacity,
+            buffer_capacity: DEFAULT_BUFFER_CAPACITY,
             database_url,
         }
+    }
+
+    pub fn from_state_version(mut self, state_version: u64) -> Self {
+        self.state_version = state_version;
+        self
+    }
+
+    pub fn limit_per_page(mut self, limit_per_page: u32) -> Self {
+        self.limit_per_page = limit_per_page;
+        self
+    }
+
+    pub fn buffer_capacity(mut self, capacity: u64) -> Self {
+        self.buffer_capacity = capacity;
+        self
     }
 }
 
@@ -164,7 +178,8 @@ impl DatabaseFetcher {
 #[async_trait]
 impl TransactionStream for DatabaseTransactionStream {
     async fn start(&mut self) -> Result<Receiver<Transaction>, anyhow::Error> {
-        let (tx, rx) = tokio::sync::mpsc::channel(self.capacity as usize);
+        let (tx, rx) =
+            tokio::sync::mpsc::channel(self.buffer_capacity as usize);
         let mut fetcher = DatabaseFetcher::new(
             self.database_url.clone(),
             self.limit_per_page,

@@ -52,12 +52,11 @@ async fn main() {
 
     // Create a new transaction stream, which the processor will use
     // as a source of transactions.
-    let stream = GatewayTransactionStream::new(
-        71500000,
-        "https://mainnet.radixdlt.com".to_string(),
-        100,
-        1000,
-    );
+    let stream = GatewayTransactionStream::new()
+        .gateway_url("https://mainnet.radixdlt.com".to_string())
+        .from_state_version(71500000)
+        .buffer_capacity(1000)
+        .limit_per_page(100);
 
     // Start with parameters.
     SimpleTransactionStreamProcessor::run_with(

@@ -16,6 +16,11 @@ use tokio::sync::mpsc::{Receiver, Sender};
 
 const CAUGHT_UP_TIMEOUT_MS: u64 = 500;
 
+const PUBLIC_MAINNET_GATEWAY_URL: &str = "https://mainnet.radixdlt.com";
+const DEFAULT_STATE_VERSION: u64 = 1;
+const DEFAULT_PAGE_SIZE: u32 = 100;
+const DEFAULT_BUFFER_CAPACITY: u64 = 10000;
+
 impl Into<Event> for radix_client::gateway::models::Event {
     fn into(self) -> Event {
         let emitter = match self.emitter {
@@ -62,24 +67,39 @@ pub struct GatewayTransactionStream {
     gateway_url: String,
     from_state_version: u64,
     limit_per_page: u32,
-    capacity: u64,
+    buffer_capacity: u64,
     handle: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl GatewayTransactionStream {
-    pub fn new(
-        from_state_version: u64,
-        gateway_url: String,
-        limit_per_page: u32,
-        capacity: u64,
-    ) -> Self {
+    pub fn new() -> Self {
         GatewayTransactionStream {
-            gateway_url,
-            from_state_version,
-            limit_per_page,
-            capacity,
+            gateway_url: PUBLIC_MAINNET_GATEWAY_URL.to_string(),
+            from_state_version: DEFAULT_STATE_VERSION,
+            limit_per_page: DEFAULT_PAGE_SIZE,
+            buffer_capacity: DEFAULT_BUFFER_CAPACITY,
             handle: None,
         }
+    }
+
+    pub fn from_state_version(mut self, from_state_version: u64) -> Self {
+        self.from_state_version = from_state_version;
+        self
+    }
+
+    pub fn gateway_url(mut self, gateway_url: String) -> Self {
+        self.gateway_url = gateway_url;
+        self
+    }
+
+    pub fn limit_per_page(mut self, limit_per_page: u32) -> Self {
+        self.limit_per_page = limit_per_page;
+        self
+    }
+
+    pub fn buffer_capacity(mut self, buffer_capacity: u64) -> Self {
+        self.buffer_capacity = buffer_capacity;
+        self
     }
 }
 
@@ -133,7 +153,8 @@ impl GatewayFetcher {
 #[async_trait]
 impl TransactionStream for GatewayTransactionStream {
     async fn start(&mut self) -> Result<Receiver<Transaction>, anyhow::Error> {
-        let (tx, rx) = tokio::sync::mpsc::channel(self.capacity as usize);
+        let (tx, rx) =
+            tokio::sync::mpsc::channel(self.buffer_capacity as usize);
         let mut fetcher = GatewayFetcher::new(
             self.gateway_url.clone(),
             self.from_state_version,

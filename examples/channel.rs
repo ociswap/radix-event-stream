@@ -54,12 +54,11 @@ async fn main() {
 
     // Create a new transaction stream, which the processor will use
     // as a source of transactions.
-    let mut gateway_stream = GatewayTransactionStream::new(
-        1919391,
-        "https://mainnet.radixdlt.com".to_string(),
-        100,
-        1000,
-    );
+    let mut gateway_stream = GatewayTransactionStream::new()
+        .from_state_version(71500000)
+        .gateway_url("https://mainnet.radixdlt.com".to_string())
+        .buffer_capacity(1000)
+        .limit_per_page(100);
 
     // creating a new channel stream, which gives back a sender side.
     let (channel_stream, sender) = ChannelTransactionStream::new(100);

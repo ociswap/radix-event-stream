@@ -132,12 +132,11 @@ async fn run_from_gateway(
 ) {
     // Create a new transaction stream, which the processor will use
     // as a source of transactions.
-    let stream = GatewayTransactionStream::new(
-        1919391,
-        "https://mainnet.radixdlt.com".to_string(),
-        100,
-        1000,
-    );
+    let stream = GatewayTransactionStream::new()
+        .gateway_url("https://mainnet.radixdlt.com".to_string())
+        .from_state_version(1919391)
+        .buffer_capacity(1000)
+        .limit_per_page(100);
 
     // Start with parameters.
     TransactionStreamProcessor::run_with(
@@ -162,13 +161,15 @@ async fn run_from_database(
 ) {
     // Create a new transaction stream, which the processor will use
     // as a source of transactions.
+
     let stream = DatabaseTransactionStream::new(
+        // This database is public, but I would recommend not using it for anything outside
+        // of testing.
         "postgresql://radix:radix@db.radix.live/radix_ledger".to_string(),
-        1919391,
-        10000,
-        1000000,
     )
-    .await;
+    .from_state_version(1919391)
+    .buffer_capacity(1_000_000)
+    .limit_per_page(100_000);
 
     // Start with parameters.
     TransactionStreamProcessor::run_with(

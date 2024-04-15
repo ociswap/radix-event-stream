@@ -53,12 +53,13 @@ async fn main() {
     // Create a new transaction stream, which the processor will use
     // as a source of transactions.
     let stream = DatabaseTransactionStream::new(
+        // This database is public, but I would recommend not using it for anything outside
+        // of testing.
         "postgresql://radix:radix@db.radix.live/radix_ledger".to_string(),
-        1919391,
-        100000,
-        1000000,
     )
-    .await;
+    .from_state_version(1919391)
+    .buffer_capacity(1_000_000)
+    .limit_per_page(100_000);
 
     // Start with parameters.
     SimpleTransactionStreamProcessor::run_with(
