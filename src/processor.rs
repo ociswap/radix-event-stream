@@ -97,7 +97,7 @@ where
         current_state_report_interval_ms: u64,
     ) -> Self {
         TransactionStreamProcessor {
-            current_state_report_interval: Duration::from_secs(
+            current_state_report_interval: Duration::from_millis(
                 current_state_report_interval_ms,
             ),
             ..self
