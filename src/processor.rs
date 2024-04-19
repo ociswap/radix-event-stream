@@ -11,7 +11,7 @@ use crate::{
 use async_trait::async_trait;
 use colored::Colorize;
 use log::{error, info};
-use std::{thread::sleep, time::Instant};
+use std::time::{Duration, Instant};
 
 const CURRENT_STATE_REPORT_INTERVAL: u64 = 60;
 const TRANSACTION_RETRY_INTERVAL: u64 = 10;
@@ -31,9 +31,9 @@ where
     transaction_handler: Box<dyn TransactionHandler<STATE>>,
     state: STATE,
     state_version_last_reported: Instant,
-    transaction_retry_delay_ms: u64,
-    event_retry_delay_ms: u64,
-    current_state_report_interval_ms: u64,
+    transaction_retry_delay: Duration,
+    event_retry_delay: Duration,
+    current_state_report_interval: Duration,
 }
 
 #[allow(non_camel_case_types)]
@@ -53,9 +53,13 @@ where
             transaction_handler: Box::new(DefaultTransactionHandler {}),
             state_version_last_reported: Instant::now(),
             state: state,
-            transaction_retry_delay_ms: TRANSACTION_RETRY_INTERVAL,
-            event_retry_delay_ms: EVENT_RETRY_INTERVAL,
-            current_state_report_interval_ms: CURRENT_STATE_REPORT_INTERVAL,
+            transaction_retry_delay: Duration::from_millis(
+                TRANSACTION_RETRY_INTERVAL,
+            ),
+            event_retry_delay: Duration::from_millis(EVENT_RETRY_INTERVAL),
+            current_state_report_interval: Duration::from_secs(
+                CURRENT_STATE_REPORT_INTERVAL,
+            ),
         }
     }
 
@@ -74,14 +78,16 @@ where
         transaction_retry_delay_ms: u64,
     ) -> Self {
         TransactionStreamProcessor {
-            transaction_retry_delay_ms,
+            transaction_retry_delay: Duration::from_millis(
+                transaction_retry_delay_ms,
+            ),
             ..self
         }
     }
 
     pub fn event_retry_delay_ms(self, event_retry_delay_ms: u64) -> Self {
         TransactionStreamProcessor {
-            event_retry_delay_ms,
+            event_retry_delay: Duration::from_millis(event_retry_delay_ms),
             ..self
         }
     }
@@ -91,7 +97,9 @@ where
         current_state_report_interval_ms: u64,
     ) -> Self {
         TransactionStreamProcessor {
-            current_state_report_interval_ms,
+            current_state_report_interval: Duration::from_secs(
+                current_state_report_interval_ms,
+            ),
             ..self
         }
     }
@@ -137,7 +145,7 @@ where
                 state: &mut self.state,
                 transaction,
                 event_processor: &mut EventProcessor {
-                    event_retry_interval_ms: self.event_retry_delay_ms,
+                    event_retry_interval: self.event_retry_delay,
                     transaction,
                 },
                 handler_registry: &mut self.handler_registry,
@@ -154,14 +162,12 @@ where
                     info!(
                         "{}",
                         format!(
-                            "RETRYING TRANSACTION IN {} SECONDS\n",
-                            self.transaction_retry_delay_ms
+                            "RETRYING TRANSACTION IN {:.2} SECONDS\n",
+                            self.transaction_retry_delay.as_secs_f32()
                         )
                         .bright_yellow()
                     );
-                    sleep(std::time::Duration::from_secs(
-                        self.transaction_retry_delay_ms,
-                    ));
+                    tokio::time::sleep(self.transaction_retry_delay).await;
                     info!(
                         "{}",
                         format!(
@@ -216,8 +222,8 @@ where
             })?;
         // Process transactions as they arrive.
         while let Some(transaction) = receiver.recv().await {
-            if self.state_version_last_reported.elapsed().as_secs()
-                > self.current_state_report_interval_ms
+            if self.state_version_last_reported.elapsed()
+                > self.current_state_report_interval
             {
                 info!(
                     "{}",
@@ -264,7 +270,7 @@ where
 }
 
 pub struct EventProcessor<'a> {
-    event_retry_interval_ms: u64,
+    event_retry_interval: Duration,
     transaction: &'a Transaction,
 }
 
@@ -321,14 +327,12 @@ impl<'a> EventProcessor<'a> {
                         info!(
                             "{}",
                             format!(
-                                "RETRYING IN {} SECONDS\n",
-                                self.event_retry_interval_ms
+                                "RETRYING IN {:.2} SECONDS\n",
+                                self.event_retry_interval.as_secs_f32()
                             )
                             .bright_yellow()
                         );
-                        sleep(std::time::Duration::from_secs(
-                            self.event_retry_interval_ms,
-                        ));
+                        tokio::time::sleep(self.event_retry_interval).await;
                         info!(
                             "{}",
                             format!("RETRYING HANDLING EVENT: {}", event.name)
