@@ -4,7 +4,7 @@ use radix_engine_common::types::{ComponentAddress, ResourceAddress};
 use radix_engine_common::ScryptoSbor;
 use radix_event_stream::event_handler::HandlerRegistry;
 use radix_event_stream::macros::event_handler;
-use radix_event_stream::processor::SimpleTransactionStreamProcessor;
+use radix_event_stream::processor::TransactionStreamProcessor;
 use radix_event_stream::sources::database::DatabaseTransactionStream;
 use std::env;
 
@@ -62,11 +62,12 @@ async fn main() {
     .limit_per_page(100_000);
 
     // Start with parameters.
-    SimpleTransactionStreamProcessor::run_with(
+    TransactionStreamProcessor::new(
         stream,
         handler_registry,
         State { number: 1 },
     )
+    .run()
     .await
     .unwrap();
 }

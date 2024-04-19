@@ -67,7 +67,7 @@ async fn main() {
 
         // Handle the events in the transaction
         context
-            .transaction
+            .event_processor
             .process_events(
                 context.state,
                 context.handler_registry,
@@ -107,19 +107,18 @@ async fn run_from_file(
         "examples/pools/transactions.json".to_string(),
     );
 
+    let state = State {
+        number: 0,
+        pool: Arc::new(pool),
+        network: NetworkDefinition::mainnet(),
+    };
+
     // Start with parameters.
-    TransactionStreamProcessor::run_with(
-        stream,
-        handler_registry,
-        transaction_handler,
-        State {
-            number: 0,
-            pool: Arc::new(pool),
-            network: NetworkDefinition::mainnet(),
-        },
-    )
-    .await
-    .unwrap();
+    TransactionStreamProcessor::new(stream, handler_registry, state)
+        .transaction_handler(transaction_handler)
+        .run()
+        .await
+        .unwrap();
 }
 
 async fn run_from_gateway(
@@ -135,19 +134,18 @@ async fn run_from_gateway(
         .buffer_capacity(1000)
         .limit_per_page(100);
 
+    let state = State {
+        number: 0,
+        pool: Arc::new(pool),
+        network: NetworkDefinition::mainnet(),
+    };
+
     // Start with parameters.
-    TransactionStreamProcessor::run_with(
-        stream,
-        handler_registry,
-        transaction_handler,
-        State {
-            number: 0,
-            pool: Arc::new(pool),
-            network: NetworkDefinition::mainnet(),
-        },
-    )
-    .await
-    .unwrap();
+    TransactionStreamProcessor::new(stream, handler_registry, state)
+        .transaction_handler(transaction_handler)
+        .run()
+        .await
+        .unwrap();
 }
 
 async fn run_from_database(
@@ -167,17 +165,17 @@ async fn run_from_database(
     .buffer_capacity(1_000_000)
     .limit_per_page(100_000);
 
+    let state = State {
+        number: 0,
+        pool: Arc::new(pool),
+        network: NetworkDefinition::mainnet(),
+    };
+
     // Start with parameters.
-    TransactionStreamProcessor::run_with(
-        stream,
-        handler_registry,
-        transaction_handler,
-        State {
-            number: 0,
-            pool: Arc::new(pool),
-            network: NetworkDefinition::mainnet(),
-        },
-    )
-    .await
-    .unwrap();
+    TransactionStreamProcessor::new(stream, handler_registry, state)
+        .transaction_handler(transaction_handler)
+        .current_state_report_interval_ms(1000)
+        .run()
+        .await
+        .unwrap();
 }

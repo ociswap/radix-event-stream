@@ -26,33 +26,73 @@ pub struct TransactionStreamProcessor<STREAM, STATE>
 where
     STREAM: TransactionStream,
 {
-    pub transaction_stream: STREAM,
-    pub handler_registry: HandlerRegistry,
-    pub transaction_handler: Box<dyn TransactionHandler<STATE>>,
-    pub state: STATE,
-    pub state_version_last_reported: Instant,
+    transaction_stream: STREAM,
+    handler_registry: HandlerRegistry,
+    transaction_handler: Box<dyn TransactionHandler<STATE>>,
+    state: STATE,
+    state_version_last_reported: Instant,
+    transaction_retry_delay_ms: u64,
+    event_retry_delay_ms: u64,
+    current_state_report_interval_ms: u64,
 }
 
 #[allow(non_camel_case_types)]
 impl<STREAM, STATE> TransactionStreamProcessor<STREAM, STATE>
 where
     STREAM: TransactionStream,
+    STATE: Send + Sync + 'static,
 {
-    /// Creates a new `TransactionStreamProcessor` with the given
-    /// `TransactionStream`, `HandlerRegistry`, `TransactionHandler`
-    /// and initial `STATE`.
     pub fn new(
         transaction_stream: STREAM,
         handler_registry: HandlerRegistry,
-        transaction_handler: impl TransactionHandler<STATE> + 'static,
         state: STATE,
     ) -> Self {
         TransactionStreamProcessor {
             transaction_stream,
             handler_registry,
-            transaction_handler: Box::new(transaction_handler),
-            state,
+            transaction_handler: Box::new(DefaultTransactionHandler {}),
             state_version_last_reported: Instant::now(),
+            state: state,
+            transaction_retry_delay_ms: TRANSACTION_RETRY_INTERVAL,
+            event_retry_delay_ms: EVENT_RETRY_INTERVAL,
+            current_state_report_interval_ms: CURRENT_STATE_REPORT_INTERVAL,
+        }
+    }
+
+    pub fn transaction_handler(
+        self,
+        transaction_handler: impl TransactionHandler<STATE> + 'static,
+    ) -> Self {
+        TransactionStreamProcessor {
+            transaction_handler: Box::new(transaction_handler),
+            ..self
+        }
+    }
+
+    pub fn transaction_retry_delay_ms(
+        self,
+        transaction_retry_delay_ms: u64,
+    ) -> Self {
+        TransactionStreamProcessor {
+            transaction_retry_delay_ms,
+            ..self
+        }
+    }
+
+    pub fn event_retry_delay_ms(self, event_retry_delay_ms: u64) -> Self {
+        TransactionStreamProcessor {
+            event_retry_delay_ms,
+            ..self
+        }
+    }
+
+    pub fn current_state_report_interval_ms(
+        self,
+        current_state_report_interval_ms: u64,
+    ) -> Self {
+        TransactionStreamProcessor {
+            current_state_report_interval_ms,
+            ..self
         }
     }
 
@@ -96,6 +136,10 @@ where
             .handle(TransactionHandlerContext {
                 state: &mut self.state,
                 transaction,
+                event_processor: &mut EventProcessor {
+                    event_retry_interval_ms: self.event_retry_delay_ms,
+                    transaction,
+                },
                 handler_registry: &mut self.handler_registry,
             })
             .await
@@ -109,11 +153,14 @@ where
                     );
                     info!(
                         "{}",
-                        format!("RETRYING TRANSACTION IN {TRANSACTION_RETRY_INTERVAL} SECONDS\n")
-                            .bright_yellow()
+                        format!(
+                            "RETRYING TRANSACTION IN {} SECONDS\n",
+                            self.transaction_retry_delay_ms
+                        )
+                        .bright_yellow()
                     );
                     sleep(std::time::Duration::from_secs(
-                        TRANSACTION_RETRY_INTERVAL,
+                        self.transaction_retry_delay_ms,
                     ));
                     info!(
                         "{}",
@@ -170,7 +217,7 @@ where
         // Process transactions as they arrive.
         while let Some(transaction) = receiver.recv().await {
             if self.state_version_last_reported.elapsed().as_secs()
-                > CURRENT_STATE_REPORT_INTERVAL
+                > self.current_state_report_interval_ms
             {
                 info!(
                     "{}",
@@ -192,73 +239,6 @@ where
         // The processor will exit gracefully.
         Ok(())
     }
-
-    // Shorthand for running the processor with the required parameters.
-    pub async fn run_with(
-        transaction_stream: STREAM,
-        handler_registry: HandlerRegistry,
-        transaction_handler: impl TransactionHandler<STATE> + 'static,
-        state: STATE,
-    ) -> Result<(), TransactionStreamProcessorError> {
-        let mut processor = TransactionStreamProcessor::new(
-            transaction_stream,
-            handler_registry,
-            transaction_handler,
-            state,
-        );
-        processor.run().await
-    }
-}
-
-/// A simple wrapper around `TransactionStreamProcessor` that uses
-/// a default transaction handler that simply calls `process_events`
-/// on the transaction. This is useful for simple use cases where
-/// you don't need any custom transaction handling logic.
-#[allow(non_camel_case_types)]
-pub struct SimpleTransactionStreamProcessor<STREAM, STATE>
-where
-    STREAM: TransactionStream,
-{
-    processor: TransactionStreamProcessor<STREAM, STATE>,
-}
-
-#[allow(non_camel_case_types)]
-impl<STREAM, STATE> SimpleTransactionStreamProcessor<STREAM, STATE>
-where
-    STREAM: TransactionStream,
-    STATE: 'static + Send + Sync,
-{
-    pub fn new(
-        transaction_stream: STREAM,
-        handler_registry: HandlerRegistry,
-        state: STATE,
-    ) -> Self {
-        let processor: TransactionStreamProcessor<STREAM, STATE> =
-            TransactionStreamProcessor::new(
-                transaction_stream,
-                handler_registry,
-                DefaultTransactionHandler {},
-                state,
-            );
-        SimpleTransactionStreamProcessor { processor }
-    }
-
-    pub async fn run(&mut self) -> Result<(), TransactionStreamProcessorError> {
-        self.processor.run().await
-    }
-
-    pub async fn run_with(
-        transaction_stream: STREAM,
-        handler_registry: HandlerRegistry,
-        state: STATE,
-    ) -> Result<(), TransactionStreamProcessorError> {
-        let mut processor = SimpleTransactionStreamProcessor::new(
-            transaction_stream,
-            handler_registry,
-            state,
-        );
-        processor.run().await
-    }
 }
 
 /// A default transaction handler that simply calls `process_events`
@@ -276,25 +256,20 @@ where
         input: TransactionHandlerContext<'_, STATE>,
     ) -> Result<(), TransactionHandlerError> {
         input
-            .transaction
+            .event_processor
             .process_events(input.state, input.handler_registry, &mut ())
             .await?;
         Ok(())
     }
 }
 
+pub struct EventProcessor<'a> {
+    event_retry_interval_ms: u64,
+    transaction: &'a Transaction,
+}
+
 #[allow(non_camel_case_types)]
-impl Transaction {
-    /// Convenience method which iterates over the events in the
-    /// transaction and calls the appropriate event handler
-    /// for events which have a handler
-    /// registered in the `HandlerRegistry`.
-    ///
-    /// When event handlers return an `EventHandlerError::EventRetryError`,
-    /// this method will keep retrying handling the event until it succeeds.
-    /// Please consider that event handlers may be called multiple times
-    /// in this case, so they must be idempotent at least up to the point
-    /// where the error occurred.
+impl<'a> EventProcessor<'a> {
     pub async fn process_events<
         STATE: 'static,
         TRANSACTION_CONTEXT: 'static,
@@ -304,7 +279,7 @@ impl Transaction {
         handler_registry: &mut HandlerRegistry,
         transaction_context: &mut TRANSACTION_CONTEXT,
     ) -> Result<(), EventHandlerError> {
-        for event in self.events.iter() {
+        for event in self.transaction.events.iter() {
             let event_handler = {
                 if !handler_registry
                     .handler_exists(event.emitter.address(), &event.name)
@@ -326,8 +301,8 @@ impl Transaction {
             while let Err(err) = event_handler
                 .handle(
                     EventHandlerContext {
-                        state,
-                        transaction: self,
+                        state: state,
+                        transaction: self.transaction,
                         event,
                         handler_registry,
                         transaction_context,
@@ -346,12 +321,13 @@ impl Transaction {
                         info!(
                             "{}",
                             format!(
-                                "RETRYING IN {EVENT_RETRY_INTERVAL} SECONDS\n"
+                                "RETRYING IN {} SECONDS\n",
+                                self.event_retry_interval_ms
                             )
                             .bright_yellow()
                         );
                         sleep(std::time::Duration::from_secs(
-                            EVENT_RETRY_INTERVAL,
+                            self.event_retry_interval_ms,
                         ));
                         info!(
                             "{}",

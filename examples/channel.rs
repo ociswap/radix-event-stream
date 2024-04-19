@@ -4,7 +4,7 @@ use radix_engine_common::types::{ComponentAddress, ResourceAddress};
 use radix_engine_common::ScryptoSbor;
 use radix_event_stream::event_handler::HandlerRegistry;
 use radix_event_stream::macros::event_handler;
-use radix_event_stream::processor::SimpleTransactionStreamProcessor;
+use radix_event_stream::processor::TransactionStreamProcessor;
 use radix_event_stream::sources::channel::ChannelTransactionStream;
 use radix_event_stream::sources::gateway::GatewayTransactionStream;
 use radix_event_stream::stream::TransactionStream;
@@ -87,11 +87,12 @@ async fn main() {
     });
 
     // Start with parameters.
-    SimpleTransactionStreamProcessor::run_with(
+    TransactionStreamProcessor::new(
         channel_stream,
         handler_registry,
         State { number: 1 },
     )
+    .run()
     .await
     .unwrap();
 }

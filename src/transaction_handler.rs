@@ -1,6 +1,6 @@
 use crate::{
     error::TransactionHandlerError, event_handler::HandlerRegistry,
-    models::Transaction,
+    models::Transaction, processor::EventProcessor,
 };
 use async_trait::async_trait;
 
@@ -20,5 +20,6 @@ pub trait TransactionHandler<STATE> {
 pub struct TransactionHandlerContext<'a, STATE> {
     pub state: &'a mut STATE,
     pub transaction: &'a Transaction,
+    pub event_processor: &'a mut EventProcessor<'a>,
     pub handler_registry: &'a mut HandlerRegistry,
 }
