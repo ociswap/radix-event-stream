@@ -57,7 +57,7 @@ where
                 TRANSACTION_RETRY_INTERVAL,
             ),
             event_retry_delay: Duration::from_millis(EVENT_RETRY_INTERVAL),
-            current_state_report_interval: Duration::from_secs(
+            current_state_report_interval: Duration::from_millis(
                 CURRENT_STATE_REPORT_INTERVAL,
             ),
         }
