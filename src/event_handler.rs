@@ -192,6 +192,10 @@ impl<STATE, TRANSACTION_CONTEXT> Clone
 
 /// A struct that holds the context for an event handler,
 /// which is passed to the handler when it is called.
+///
+/// STATE: The global state of the application.
+/// TRANSACTION_CONTEXT: A type containing context of a current transaction, like
+/// a database transaction handle. This is optional and defaults to the unit type.
 #[allow(non_camel_case_types)]
 pub struct EventHandlerContext<'a, STATE, TRANSACTION_CONTEXT = ()> {
     pub state: &'a mut STATE,

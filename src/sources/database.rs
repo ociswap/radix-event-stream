@@ -14,8 +14,8 @@ use tokio::{sync::mpsc::Receiver, time::timeout};
 const DEFAULT_CAUGHT_UP_TIMEOUT_MS: u64 = 500;
 const DEFAULT_QUERY_TIMEOUT_MS: u64 = 30_000;
 const DEFAULT_STATE_VERSION: u64 = 1;
-const DEFAULT_PAGE_SIZE: u32 = 100000;
-const DEFAULT_BUFFER_CAPACITY: u64 = 1000000;
+const DEFAULT_PAGE_SIZE: u32 = 100_000;
+const DEFAULT_BUFFER_CAPACITY: u64 = 1_000_000;
 
 /// A transaction stream that fetches transactions directly from
 /// the PostgreSQL database associated with a Radix Gateway.

@@ -276,6 +276,7 @@ where
         // If the transmitting half of the channel is dropped,
         // the receiver will return None and we will exit the loop.
         // The processor will exit gracefully.
+
         if let Some(handle) = self.periodic_logging_joinhandle.take() {
             handle.abort();
         }

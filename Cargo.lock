@@ -1724,7 +1724,7 @@ checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 [[package]]
 name = "radix-client"
 version = "1.0.0"
-source = "git+https://github.com/ociswap/radix-client?branch=improve-builder-design#94485347b400d63a3a19d2779e51edf723d1912d"
+source = "git+https://github.com/ociswap/radix-client?branch=improve-builder-design#a72eb06138b0e95c69c2b8fe57a27303fa6d9e5b"
 dependencies = [
  "chrono",
  "duplicate",
