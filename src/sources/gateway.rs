@@ -1,3 +1,5 @@
+//! A transaction stream that fetches transactions from a Radix Gateway API.
+
 use crate::{
     encodings::programmatic_json_to_bytes,
     models::{Event, EventEmitter, Transaction},
@@ -65,6 +67,9 @@ impl Into<Transaction> for CommittedTransactionInfo {
         }
     }
 }
+
+/// A struct that fetches transactions from a Radix Gateway API.
+/// It uses a builder pattern for initialization, with some sensible defaults.
 #[derive(Debug)]
 pub struct GatewayTransactionStream {
     gateway_url: String,
@@ -76,6 +81,7 @@ pub struct GatewayTransactionStream {
 }
 
 impl GatewayTransactionStream {
+    /// Creates a new GatewayTransactionStream with default settings.
     pub fn new() -> Self {
         GatewayTransactionStream {
             gateway_url: PUBLIC_MAINNET_GATEWAY_URL.to_string(),
@@ -87,32 +93,44 @@ impl GatewayTransactionStream {
         }
     }
 
+    /// Sets the state version to start fetching transactions from.
+    /// This is inclusive, so the transaction with this state version will be included.
     pub fn from_state_version(mut self, from_state_version: u64) -> Self {
         self.from_state_version = from_state_version;
         self
     }
 
+    /// Sets the URL of the Radix Gateway API to fetch transactions from.
     pub fn gateway_url(mut self, gateway_url: String) -> Self {
         self.gateway_url = gateway_url;
         self
     }
 
+    /// Sets the number of transactions to fetch per page.
     pub fn limit_per_page(mut self, limit_per_page: u32) -> Self {
         self.limit_per_page = limit_per_page;
         self
     }
 
+    /// Sets the buffer capacity of the channel through which transactions are sent to the transaction processor.
+    /// This is the maximum number of transactions that can be buffered before the processor starts to block.
+    /// If the stream is producing transactions faster than the transaction processor can consume them,
+    /// this buffer will fill up.
+    /// You may want to play with this value, based on the performance of the API and the transaction processor.
     pub fn buffer_capacity(mut self, buffer_capacity: u64) -> Self {
         self.buffer_capacity = buffer_capacity;
         self
     }
 
+    /// Sets the timeout in milliseconds to wait for after each poll of the gateway API when the stream is caught up.
+    /// Tweak this to prevent the stream from polling the API too frequently while there are no transactions to fetch.
     pub fn caught_up_timeout_ms(mut self, caught_up_timeout_ms: u64) -> Self {
         self.caught_up_timeout_ms = caught_up_timeout_ms;
         self
     }
 }
 
+/// A fetcher which is passed to the new task created by the stream.
 struct GatewayFetcher {
     stream: TransactionStreamAsync,
     caught_up_timeout_ms: u64,
@@ -140,6 +158,7 @@ impl GatewayFetcher {
         }
     }
 
+    /// Fetches transactions from the gateway and sends them to the transaction processor.
     async fn run(&mut self) {
         loop {
             let mut response = self.stream.next().await;

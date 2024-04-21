@@ -1,14 +1,14 @@
-use std::{str::FromStr, time::Duration};
+//! A transaction stream that fetches transactions from a Radix Gateway PostgreSQL database.
 
 use crate::{
     models::{Event, EventEmitter, Transaction},
     stream::TransactionStream,
 };
-
 use async_trait::async_trait;
 use chrono::Utc;
 use serde::Deserialize;
 use sqlx::{postgres::PgConnectOptions, ConnectOptions};
+use std::{str::FromStr, time::Duration};
 use tokio::{sync::mpsc::Receiver, time::timeout};
 
 const DEFAULT_CAUGHT_UP_TIMEOUT_MS: u64 = 500;
@@ -140,15 +140,15 @@ impl DatabaseFetcher {
             .map(|db_transaction| {
                 let events = db_transaction
                     .receipt_event_emitters
-                    .iter()
-                    .zip(db_transaction.receipt_event_sbors.iter())
-                    .zip(db_transaction.receipt_event_names.iter())
+                    .into_iter()
+                    .zip(db_transaction.receipt_event_sbors.into_iter())
+                    .zip(db_transaction.receipt_event_names.into_iter())
                     .map(|((emitter, sbor), name)| Event {
-                        name: name.clone(),
-                        binary_sbor_data: sbor.clone(),
+                        name,
+                        binary_sbor_data: sbor,
                         emitter:
                             serde_json::from_value::<EventEmitterIdentifier>(
-                                emitter.clone(),
+                                emitter,
                             )
                             .expect("Should be able to decode event emitter")
                             .into(),

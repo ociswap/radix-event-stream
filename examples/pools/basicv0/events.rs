@@ -78,13 +78,13 @@ pub async fn handle_swap_event(
     context: EventHandlerContext<State, TransactionContext>,
     event: SwapEvent,
 ) -> Result<(), EventHandlerError> {
-    // info!("Handling swap event: {:#?}", event);
     add_to_database(
         context.transaction_context,
         context.event.binary_sbor_data.clone(),
     )
     .await
     .map_err(|err| EventHandlerError::UnrecoverableError(err.into()))?;
+
     Ok(())
 }
 

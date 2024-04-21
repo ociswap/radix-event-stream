@@ -1,3 +1,5 @@
+//! A transaction stream that receives transactions from a [`tokio::sync::mpsc::channel`].
+
 use crate::{models::Transaction, stream::TransactionStream};
 use async_trait::async_trait;
 use tokio::sync::mpsc::Receiver;

@@ -1,3 +1,5 @@
+//! A transaction stream that fetches transactions from a YAML or JSON file.
+
 use std::{fs::File, path::Path};
 
 use async_trait::async_trait;

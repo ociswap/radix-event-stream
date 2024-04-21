@@ -14,6 +14,7 @@ use radix_event_stream::{
 use sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
 use std::env;
 use std::sync::Arc;
+use std::time::Duration;
 
 #[tokio::main]
 async fn main() {
@@ -163,7 +164,7 @@ async fn run_from_database(
     )
     .from_state_version(1919391)
     .buffer_capacity(1_000_000)
-    .limit_per_page(100_000);
+    .limit_per_page(10_000);
 
     let state = State {
         number: 0,
@@ -174,7 +175,7 @@ async fn run_from_database(
     // Start with parameters.
     TransactionStreamProcessor::new(stream, handler_registry, state)
         .transaction_handler(transaction_handler)
-        .current_state_report_interval_ms(1000)
+        .default_logger_with_report_interval(Duration::from_millis(500))
         .run()
         .await
         .unwrap();

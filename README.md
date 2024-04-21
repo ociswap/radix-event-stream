@@ -6,13 +6,13 @@
 
 ### ✅ Extensible:
 
-Easily identify and process custom events by implementing event handlers.
+Easily identify and process custom events by implementing event handlers. Implement custom logging and collect metrics.
 
 ### ✅ Data source agnostic:
 
-Pick from one of the provided data sources (Radix Gateway, file) or easily implement your own.
+Pick from one of the provided data sources (Radix Gateway, Radix Gateway database, file) or easily implement your own.
 
-### ✅ Easy to use:
+### ✅ Easy to get started with:
 
 Simply pick a transaction source, register your handlers and start the stream.
 
@@ -47,6 +47,8 @@ Each event has an **emitter**. This is the on-ledger entity that emitted the eve
 
 ## General usage.
 
+Below, the main usage steps are outlined. For more detailed information, see the cargo docs.
+
 ### Step 1: copy/paste event definitions.
 
 ```Rust
@@ -64,7 +66,7 @@ Above, we see an event definition used in one of Ociswap's Basic pools. It deriv
 
 ### Step 2: Define a global state.
 
-This will be mutably shared with every transaction handler. If you need to share this data with other pieces of code you may choose to store items wrapped in Rc, RefCell, Arc, Mutex, etc.
+This will be mutably shared with every transaction handler. If you need to share this data with other pieces of code you may choose to store items wrapped in Arc, Mutex, etc.
 
 ```rust
 struct State {
@@ -205,7 +207,6 @@ To make the transaction stream have any kind of sense of ledger transactions, we
 Custom transaction handlers can pass a custom transaction context to event handlers. This gives event handlers access to a database transaction for example, so that each handler can do inserts inside that transaction. Let's define a custom transaction context struct:
 
 ```rust
-// pseudocode
 struct TransactionContext {
     tx: YOUR_DATABASE_TRANSACTION
 }
@@ -232,7 +233,7 @@ async fn transaction_handler_name(
     // Handle the events inside the incoming transaction.
     // We provide a simple method for this.
     context
-        .transaction
+        .event_processor
         .process_events(
             context.state,
             context.handler_registry,
@@ -258,42 +259,26 @@ async fn transaction_handler_name(
 }
 ```
 
-The `TransactionHandlerContext` holds a reference to the incoming transaction. A method called `process_events` is implemented on this struct. Calling it will iterate through the events inside the transactions and process the events which have handlers registered. It is highly recommended to use this method in your transaction handler. It is possible to implement your own loop, but it is an integral part of the library and also handles the event retry logic and some logging.
-
-Simplest concrete example:
-
-```rust
-#[transaction_handler]
-async fn transaction_handler(
-    context: TransactionHandlerContext<State>,
-) -> Result<(), TransactionHandlerError> {
-    // Do something before handling events
-    context
-        .transaction
-        .process_events(context.state, context.handler_registry)?;
-    // Do something after handling events
-    Ok(())
-}
-```
+The `TransactionHandlerContext` holds a struct called `EventProcessor`. A method called `process_events` is implemented on this struct. Calling it will iterate through the events inside the transactions and process the events which have handlers registered. It is highly recommended to use this method in your transaction handler. It is possible to implement your own loop, but the provided method is an integral part of the library and also handles the event retry logic and integrates with logging.
 
 ### Step 7: Run the stream processor.
 
 The `TransactionStreamProcessor` is what ties everything together. It is responsible for getting new transactions from the stream we selected, and calling the transaction handler which in turn calls the event handlers.
 
-Use the `run_with` method to start the processor, passing in the components we created and the initial app state.
+We can use a builder pattern to construct one and run it. It takes a few required parameters directly in the `new()` method, but you can set some optional behavior using the builder methods.
+
+Use `run()` to start.
 
 ```rust
-TransactionStreamProcessor::run_with(
-            stream,
-            handler_registry,
-            transaction_handler,
-            State {
-                instantiate_events_seen: 0
-            },
-        );
-```
+let state = State { instantiate_events_seen: 0 };
 
-There also exists a `SimpleTransactionStreamProcessor`, which does not require a transaction handler. It simply calls the `process_events` method from the previous step and nothing else. It's easier to set up and recommended in the case where you do not need transaction-level handling.
+TransactionStreamProcessor::new(stream, handler_registry, state)
+    .transaction_handler(transaction_handler)
+    .default_logger_with_report_interval(Duration::from_millis(500))
+    .run()
+    .await
+    .unwrap();
+```
 
 # More info
 

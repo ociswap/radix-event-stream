@@ -1,17 +1,28 @@
+//!
+//! Contains canonical models for ledger events and transactions.
+//! These models are used by the [`TransactionStream`][crate::stream::TransactionStream]
+//! and [`TransactionStreamProcessor`][crate::processor::TransactionStreamProcessor]
+//! to abstract the source of transactions and events.
+//!
+//! When implementing a new transaction stream, you will typically
+//! convert the native representations of events and transactions
+//! into these generic models.
+
 use chrono::Utc;
+use serde::{Deserialize, Serialize};
 
 /// Generic struct for ledger events from a
 /// transaction stream. To implement a new transaction
-/// stream type, you would typically implement `Into<Event>`
+/// stream type, you would typically implement [`Into<Event>`]
 /// for the native event type of the transaction stream.
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {
     pub name: String,
     pub binary_sbor_data: Vec<u8>,
     pub emitter: EventEmitter,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EventEmitter {
     Method {
         entity_address: String,
@@ -36,9 +47,9 @@ impl EventEmitter {
 
 /// Generic struct for ledger transactions from a
 /// transaction stream. To implement a new transaction
-/// stream type, you would typically implement `Into<Transaction>`
+/// stream type, you would typically implement [`Into<Transaction>`]
 /// for the native transaction type of the transaction stream.
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transaction {
     pub intent_hash: String,
     pub state_version: u64,

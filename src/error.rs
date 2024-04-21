@@ -1,3 +1,5 @@
+//! Error types for event handlers, transaction handlers, and processors.
+
 /// Error type which is returned from an event
 /// handler by the user on failure.
 #[derive(Debug)]
