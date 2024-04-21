@@ -77,14 +77,14 @@ where
             transaction_stream,
             handler_registry,
             transaction_handler: Box::new(DefaultTransactionHandler),
-            state: state,
+            state,
             transaction_retry_delay: Duration::from_millis(
                 TRANSACTION_RETRY_INTERVAL_MS,
             ),
             event_retry_delay: Duration::from_millis(EVENT_RETRY_INTERVAL_MS),
-            logger: Some(Arc::new(RwLock::new(Box::new(
-                DefaultLogger::default(),
-            )))),
+            logger: Some(Arc::new(
+                RwLock::new(Box::<DefaultLogger>::default()),
+            )),
             periodic_logging_joinhandle: None,
         }
     }
@@ -355,7 +355,7 @@ impl<'a> EventProcessor<'a> {
             while let Err(err) = event_handler
                 .handle(
                     EventHandlerContext {
-                        state: state,
+                        state,
                         transaction: self.transaction,
                         event,
                         handler_registry,

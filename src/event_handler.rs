@@ -79,6 +79,7 @@ impl<T> State for T where T: Send + Sync + 'static {}
 /// that allows some other types to be a bit simpler.
 /// It can only contain event handlers of one specific type, which is
 /// implicitly determined by the first handler that is added to the registry.
+#[derive(Default)]
 pub struct HandlerRegistry {
     handlers: HashMap<(String, String), Box<dyn Any + Send + Sync>>,
     type_id: Option<TypeId>,
@@ -87,10 +88,7 @@ pub struct HandlerRegistry {
 #[allow(non_camel_case_types)]
 impl HandlerRegistry {
     pub fn new() -> Self {
-        HandlerRegistry {
-            handlers: HashMap::new(),
-            type_id: None,
-        }
+        Self::default()
     }
 
     pub fn handler_exists(&self, emitter: &str, name: &str) -> bool {
@@ -142,6 +140,7 @@ impl HandlerRegistry {
     ///
     /// This function panics if the type parameters used to call it
     /// don't match the ones used to add the handler to the registry.
+    #[allow(clippy::borrowed_box)]
     pub fn get_handler<STATE: State, TRANSACTION_CONTEXT: 'static>(
         &self,
         emitter: &str,

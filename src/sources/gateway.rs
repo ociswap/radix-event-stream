@@ -22,9 +22,9 @@ const DEFAULT_STATE_VERSION: u64 = 1;
 const DEFAULT_PAGE_SIZE: u32 = 100;
 const DEFAULT_BUFFER_CAPACITY: u64 = 10000;
 
-impl Into<Event> for radix_client::gateway::models::Event {
-    fn into(self) -> Event {
-        let emitter = match self.emitter {
+impl From<radix_client::gateway::models::Event> for Event {
+    fn from(event: radix_client::gateway::models::Event) -> Self {
+        let emitter = match event.emitter {
             EventEmitterIdentifier::Method { entity, .. } => {
                 EventEmitter::Method {
                     entity_address: entity.entity_address,
@@ -39,24 +39,24 @@ impl Into<Event> for radix_client::gateway::models::Event {
             },
         };
         Event {
-            name: self.name,
+            name: event.name,
             emitter,
-            binary_sbor_data: programmatic_json_to_bytes(&self.data).expect(
+            binary_sbor_data: programmatic_json_to_bytes(&event.data).expect(
                 "Should always able to convert Programmatic JSON to binary SBOR",
             ),
         }
     }
 }
 
-impl Into<Transaction> for CommittedTransactionInfo {
-    fn into(self) -> Transaction {
+impl From<CommittedTransactionInfo> for Transaction {
+    fn from(transaction: CommittedTransactionInfo) -> Self {
         Transaction {
-            intent_hash: self
+            intent_hash: transaction
                 .intent_hash
                 .expect("Transaction should have tx id"),
-            state_version: self.state_version,
-            confirmed_at: self.confirmed_at,
-            events: self
+            state_version: transaction.state_version,
+            confirmed_at: transaction.confirmed_at,
+            events: transaction
                 .receipt
                 .expect("Transaction should have receipt")
                 .events
@@ -80,9 +80,8 @@ pub struct GatewayTransactionStream {
     handle: Option<tokio::task::JoinHandle<()>>,
 }
 
-impl GatewayTransactionStream {
-    /// Creates a new GatewayTransactionStream with default settings.
-    pub fn new() -> Self {
+impl Default for GatewayTransactionStream {
+    fn default() -> Self {
         GatewayTransactionStream {
             gateway_url: PUBLIC_MAINNET_GATEWAY_URL.to_string(),
             from_state_version: DEFAULT_STATE_VERSION,
@@ -91,6 +90,13 @@ impl GatewayTransactionStream {
             caught_up_timeout_ms: DEFAULT_CAUGHT_UP_TIMEOUT_MS,
             handle: None,
         }
+    }
+}
+
+impl GatewayTransactionStream {
+    /// Creates a new GatewayTransactionStream with default settings.
+    pub fn new() -> Self {
+        Default::default()
     }
 
     /// Sets the state version to start fetching transactions from.

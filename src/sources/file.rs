@@ -16,15 +16,19 @@ pub struct FileTransaction {
     pub events: Vec<radix_client::gateway::models::Event>,
 }
 
-impl Into<Transaction> for FileTransaction {
-    fn into(self) -> Transaction {
+impl From<FileTransaction> for Transaction {
+    fn from(transaction: FileTransaction) -> Self {
         Transaction {
-            intent_hash: self.intent_hash,
-            state_version: self.state_version,
+            intent_hash: transaction.intent_hash,
+            state_version: transaction.state_version,
             confirmed_at: Some(chrono::DateTime::from_timestamp_nanos(
-                self.unix_timestamp_nanos,
+                transaction.unix_timestamp_nanos,
             )),
-            events: self.events.into_iter().map(|event| event.into()).collect(),
+            events: transaction
+                .events
+                .into_iter()
+                .map(|event| event.into())
+                .collect(),
         }
     }
 }
