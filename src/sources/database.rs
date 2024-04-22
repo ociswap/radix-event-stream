@@ -37,7 +37,7 @@ pub struct DatabaseTransactionStream {
 
 impl DatabaseTransactionStream {
     pub fn new(database_url: String) -> Self {
-        DatabaseTransactionStream {
+        Self {
             state_version: DEFAULT_STATE_VERSION,
             limit_per_page: DEFAULT_PAGE_SIZE,
             handle: None,
@@ -100,7 +100,7 @@ impl DatabaseFetcher {
             .map_err(|err| anyhow::anyhow!("Invalid database URL: {}", err))?
             .disable_statement_logging();
         let connection = sqlx::postgres::PgPool::connect_with(options).await?;
-        Ok(DatabaseFetcher {
+        Ok(Self {
             connection,
             limit_per_page,
             state_version,
@@ -255,13 +255,13 @@ pub struct EntityReference {
 impl From<EventEmitterIdentifier> for EventEmitter {
     fn from(identifier: EventEmitterIdentifier) -> Self {
         match identifier {
-            EventEmitterIdentifier::Method { entity } => EventEmitter::Method {
+            EventEmitterIdentifier::Method { entity } => Self::Method {
                 entity_address: entity.entity_address,
             },
             EventEmitterIdentifier::Function {
                 package_address,
                 blueprint_name,
-            } => EventEmitter::Function {
+            } => Self::Function {
                 package_address,
                 blueprint_name,
             },

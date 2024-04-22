@@ -34,7 +34,7 @@ pub struct StreamMetrics {
 
 impl Default for StreamMetrics {
     fn default() -> Self {
-        StreamMetrics {
+        Self {
             transactions_seen: 0,
             events_seen: 0,
             transactions_handled: 0,
@@ -153,7 +153,7 @@ pub struct DefaultLogger {
 
 impl Default for DefaultLogger {
     fn default() -> Self {
-        DefaultLogger {
+        Self {
             metrics: StreamMetrics::default(),
             transaction_stopwatch: Instant::now(),
             event_stopwatch: Instant::now(),
@@ -166,9 +166,9 @@ impl DefaultLogger {
     pub fn with_custom_report_interval(
         custom_report_interval: Duration,
     ) -> Self {
-        DefaultLogger {
+        Self {
             custom_report_interval: Some(custom_report_interval),
-            ..DefaultLogger::default()
+            ..Self::default()
         }
     }
 }
@@ -359,10 +359,7 @@ impl Logger for DefaultLogger {
     }
 
     fn periodic_report_interval(&self) -> Duration {
-        if let Some(interval) = self.custom_report_interval {
-            interval
-        } else {
-            Duration::from_secs(5)
-        }
+        self.custom_report_interval
+            .unwrap_or(Duration::from_secs(5))
     }
 }

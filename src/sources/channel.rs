@@ -18,7 +18,7 @@ impl ChannelTransactionStream {
     ) -> (Self, tokio::sync::mpsc::Sender<Transaction>) {
         let (sender, receiver) = tokio::sync::mpsc::channel(capacity as usize);
         (
-            ChannelTransactionStream {
+            Self {
                 receiver: Some(receiver),
             },
             sender,

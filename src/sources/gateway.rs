@@ -1,5 +1,7 @@
 //! A transaction stream that fetches transactions from a Radix Gateway API.
 
+use std::time::Duration;
+
 use crate::{
     encodings::programmatic_json_to_bytes,
     models::{Event, EventEmitter, Transaction},
@@ -14,7 +16,10 @@ use radix_client::{
     },
     GatewayClientAsync,
 };
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::{
+    sync::mpsc::{Receiver, Sender},
+    time::sleep,
+};
 
 const DEFAULT_CAUGHT_UP_TIMEOUT_MS: u64 = 500;
 const PUBLIC_MAINNET_GATEWAY_URL: &str = "https://mainnet.radixdlt.com";
@@ -38,7 +43,7 @@ impl From<radix_client::gateway::models::Event> for Event {
                 blueprint_name,
             },
         };
-        Event {
+        Self {
             name: event.name,
             emitter,
             binary_sbor_data: programmatic_json_to_bytes(&event.data).expect(
@@ -50,7 +55,7 @@ impl From<radix_client::gateway::models::Event> for Event {
 
 impl From<CommittedTransactionInfo> for Transaction {
     fn from(transaction: CommittedTransactionInfo) -> Self {
-        Transaction {
+        Self {
             intent_hash: transaction
                 .intent_hash
                 .expect("Transaction should have tx id"),
@@ -82,7 +87,7 @@ pub struct GatewayTransactionStream {
 
 impl Default for GatewayTransactionStream {
     fn default() -> Self {
-        GatewayTransactionStream {
+        Self {
             gateway_url: PUBLIC_MAINNET_GATEWAY_URL.to_string(),
             from_state_version: DEFAULT_STATE_VERSION,
             limit_per_page: DEFAULT_PAGE_SIZE,
@@ -157,7 +162,7 @@ impl GatewayFetcher {
             from_state_version,
             limit_per_page,
         );
-        GatewayFetcher {
+        Self {
             stream,
             tx,
             caught_up_timeout_ms,
@@ -177,10 +182,7 @@ impl GatewayFetcher {
             }
             let response = response.unwrap();
             if response.items.is_empty() {
-                tokio::time::sleep(tokio::time::Duration::from_millis(
-                    self.caught_up_timeout_ms,
-                ))
-                .await;
+                sleep(Duration::from_millis(self.caught_up_timeout_ms)).await;
             }
             let transactions: Vec<Transaction> =
                 response.items.into_iter().map(|item| item.into()).collect();

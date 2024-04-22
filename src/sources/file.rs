@@ -18,7 +18,7 @@ pub struct FileTransaction {
 
 impl From<FileTransaction> for Transaction {
     fn from(transaction: FileTransaction) -> Self {
-        Transaction {
+        Self {
             intent_hash: transaction.intent_hash,
             state_version: transaction.state_version,
             confirmed_at: Some(chrono::DateTime::from_timestamp_nanos(
@@ -56,7 +56,7 @@ impl FileTransactionStream {
             _ => panic!("Unsupported file type"),
         };
 
-        FileTransactionStream { transactions }
+        Self { transactions }
     }
 }
 
@@ -64,9 +64,9 @@ impl FileTransactionStream {
 impl TransactionStream for FileTransactionStream {
     async fn start(&mut self) -> Result<Receiver<Transaction>, anyhow::Error> {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
-        let mut transactions = self.transactions.clone();
+        let transactions = self.transactions.clone();
         tokio::spawn(async move {
-            for transaction in transactions.drain(..) {
+            for transaction in transactions.into_iter() {
                 if tx.send(transaction.into()).await.is_err() {
                     break;
                 }

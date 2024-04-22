@@ -73,7 +73,7 @@ where
         handler_registry: HandlerRegistry,
         state: STATE,
     ) -> Self {
-        TransactionStreamProcessor {
+        Self {
             transaction_stream,
             handler_registry,
             transaction_handler: Box::new(DefaultTransactionHandler),
@@ -96,7 +96,7 @@ where
         self,
         transaction_handler: impl TransactionHandler<STATE>,
     ) -> Self {
-        TransactionStreamProcessor {
+        Self {
             transaction_handler: Box::new(transaction_handler),
             ..self
         }
@@ -108,7 +108,7 @@ where
         self,
         transaction_retry_delay: Duration,
     ) -> Self {
-        TransactionStreamProcessor {
+        Self {
             transaction_retry_delay,
             ..self
         }
@@ -117,7 +117,7 @@ where
     /// Sets the retry delay for events that fail to process and return an `EventRetryError`.
     /// (see [`crate::error::EventHandlerError`]).
     pub fn event_retry_delay(self, event_retry_delay: Duration) -> Self {
-        TransactionStreamProcessor {
+        Self {
             event_retry_delay,
             ..self
         }
@@ -125,7 +125,7 @@ where
 
     /// Sets the logger for the processor. It should implement the [`Logger`] trait.
     pub fn logger(self, logger: impl Logger + 'static) -> Self {
-        TransactionStreamProcessor {
+        Self {
             logger: Some(Arc::new(RwLock::new(Box::new(logger)))),
             ..self
         }
@@ -137,7 +137,7 @@ where
         self,
         interval: Duration,
     ) -> Self {
-        TransactionStreamProcessor {
+        Self {
             logger: Some(Arc::new(RwLock::new(Box::new(
                 DefaultLogger::with_custom_report_interval(interval),
             )))),
@@ -147,7 +147,7 @@ where
 
     /// Disables logging for the processor by setting the logger to `None`.
     pub fn disable_logging(self) -> Self {
-        TransactionStreamProcessor {
+        Self {
             logger: None,
             ..self
         }

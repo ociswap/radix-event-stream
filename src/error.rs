@@ -40,10 +40,10 @@ impl From<EventHandlerError> for TransactionHandlerError {
                 panic!("Event retries should be handled at the event level, not the transaction level")
             }
             EventHandlerError::TransactionRetryError(e) => {
-                TransactionHandlerError::TransactionRetryError(e)
+                Self::TransactionRetryError(e)
             }
             EventHandlerError::UnrecoverableError(e) => {
-                TransactionHandlerError::UnrecoverableError(e)
+                Self::UnrecoverableError(e)
             }
         }
     }
