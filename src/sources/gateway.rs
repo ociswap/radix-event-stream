@@ -1,14 +1,12 @@
 //! A transaction stream that fetches transactions from a Radix Gateway API.
 
-use std::time::Duration;
-
 use crate::{
     encodings::programmatic_json_to_bytes,
     models::{Event, EventEmitter, Transaction},
     stream::TransactionStream,
 };
-
 use async_trait::async_trait;
+use radix_client::gateway::models::Event as GatewayEvent;
 use radix_client::{
     gateway::{
         models::{CommittedTransactionInfo, EventEmitterIdentifier},
@@ -16,19 +14,14 @@ use radix_client::{
     },
     GatewayClientAsync,
 };
+use std::time::Duration;
 use tokio::{
     sync::mpsc::{Receiver, Sender},
     time::sleep,
 };
 
-const DEFAULT_CAUGHT_UP_TIMEOUT_MS: u64 = 500;
-const PUBLIC_MAINNET_GATEWAY_URL: &str = "https://mainnet.radixdlt.com";
-const DEFAULT_STATE_VERSION: u64 = 1;
-const DEFAULT_PAGE_SIZE: u32 = 100;
-const DEFAULT_BUFFER_CAPACITY: u64 = 10000;
-
-impl From<radix_client::gateway::models::Event> for Event {
-    fn from(event: radix_client::gateway::models::Event) -> Self {
+impl From<GatewayEvent> for Event {
+    fn from(event: GatewayEvent) -> Self {
         let emitter = match event.emitter {
             EventEmitterIdentifier::Method { entity, .. } => {
                 EventEmitter::Method {
@@ -81,18 +74,18 @@ pub struct GatewayTransactionStream {
     from_state_version: u64,
     limit_per_page: u32,
     buffer_capacity: u64,
-    caught_up_timeout_ms: u64,
+    caught_up_timeout: Duration,
     handle: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl Default for GatewayTransactionStream {
     fn default() -> Self {
         Self {
-            gateway_url: PUBLIC_MAINNET_GATEWAY_URL.to_string(),
-            from_state_version: DEFAULT_STATE_VERSION,
-            limit_per_page: DEFAULT_PAGE_SIZE,
-            buffer_capacity: DEFAULT_BUFFER_CAPACITY,
-            caught_up_timeout_ms: DEFAULT_CAUGHT_UP_TIMEOUT_MS,
+            gateway_url: "https://mainnet.radixdlt.com".to_string(),
+            from_state_version: 1,
+            limit_per_page: 100,
+            buffer_capacity: 10_000,
+            caught_up_timeout: Duration::from_millis(500),
             handle: None,
         }
     }
@@ -124,7 +117,7 @@ impl GatewayTransactionStream {
     }
 
     /// Sets the buffer capacity of the channel through which transactions are sent to the transaction processor.
-    /// This is the maximum number of transactions that can be buffered before the processor starts to block.
+    /// This is the maximum number of transactions that can be buffered before the stream starts to block.
     /// If the stream is producing transactions faster than the transaction processor can consume them,
     /// this buffer will fill up.
     /// You may want to play with this value, based on the performance of the API and the transaction processor.
@@ -133,10 +126,10 @@ impl GatewayTransactionStream {
         self
     }
 
-    /// Sets the timeout in milliseconds to wait for after each poll of the gateway API when the stream is caught up.
+    /// Sets the timeout to wait for after each poll of the gateway API when the stream is caught up.
     /// Tweak this to prevent the stream from polling the API too frequently while there are no transactions to fetch.
-    pub fn caught_up_timeout_ms(mut self, caught_up_timeout_ms: u64) -> Self {
-        self.caught_up_timeout_ms = caught_up_timeout_ms;
+    pub fn caught_up_timeout(mut self, caught_up_timeout: Duration) -> Self {
+        self.caught_up_timeout = caught_up_timeout;
         self
     }
 }
@@ -144,7 +137,7 @@ impl GatewayTransactionStream {
 /// A fetcher which is passed to the new task created by the stream.
 struct GatewayFetcher {
     stream: TransactionStreamAsync,
-    caught_up_timeout_ms: u64,
+    caught_up_timeout: Duration,
     tx: Sender<Transaction>,
 }
 
@@ -153,7 +146,7 @@ impl GatewayFetcher {
         gateway_url: String,
         from_state_version: u64,
         limit_per_page: u32,
-        caught_up_timeout_ms: u64,
+        caught_up_timeout: Duration,
         tx: Sender<Transaction>,
     ) -> Self {
         let client = GatewayClientAsync::new(gateway_url);
@@ -165,7 +158,7 @@ impl GatewayFetcher {
         Self {
             stream,
             tx,
-            caught_up_timeout_ms,
+            caught_up_timeout,
         }
     }
 
@@ -182,7 +175,7 @@ impl GatewayFetcher {
             }
             let response = response.unwrap();
             if response.items.is_empty() {
-                sleep(Duration::from_millis(self.caught_up_timeout_ms)).await;
+                sleep(self.caught_up_timeout).await;
             }
             let transactions: Vec<Transaction> =
                 response.items.into_iter().map(|item| item.into()).collect();
@@ -205,7 +198,7 @@ impl TransactionStream for GatewayTransactionStream {
             self.gateway_url.clone(),
             self.from_state_version,
             self.limit_per_page,
-            self.caught_up_timeout_ms,
+            self.caught_up_timeout,
             tx,
         );
         let handle = tokio::spawn(async move { fetcher.run().await });

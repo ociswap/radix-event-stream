@@ -17,8 +17,8 @@ use std::{
 };
 
 /// The interval at which the metrics are considered for the
-/// `transactions_per_second` and `micros_per_transaction_message` metrics.
-const METRIC_CONSIDERATION_INTERVAL_S: u64 = 10;
+/// `transactions_per_second` and `time_per_transaction_message` metrics.
+const METRIC_CONSIDERATION_INTERVAL: Duration = Duration::from_secs(10);
 
 /// A struct that holds metrics about the transaction stream in the [`DefaultLogger`]
 pub struct StreamMetrics {
@@ -212,8 +212,7 @@ impl Logger for DefaultLogger {
         self.metrics
             .recent_transactions
             .push_back((Instant::now(), time_spent));
-        let threshold = Instant::now()
-            - Duration::from_secs(METRIC_CONSIDERATION_INTERVAL_S);
+        let threshold = Instant::now() - METRIC_CONSIDERATION_INTERVAL;
         while let Some(&(time, _)) = self.metrics.recent_transactions.front() {
             if time < threshold {
                 self.metrics.recent_transactions.pop_front();
@@ -320,14 +319,11 @@ impl Logger for DefaultLogger {
                     .recent_transactions
                     .iter()
                     .filter(|(time, _)| {
-                        time > &(Instant::now()
-                            - Duration::from_secs(
-                                METRIC_CONSIDERATION_INTERVAL_S,
-                            ))
+                        time > &(Instant::now() - METRIC_CONSIDERATION_INTERVAL)
                     })
                     .count();
                 let transactions_per_second = transaction_amount
-                    / METRIC_CONSIDERATION_INTERVAL_S.min(
+                    / METRIC_CONSIDERATION_INTERVAL.as_secs().min(
                         self.metrics.time_started.elapsed().as_secs().max(1),
                     ) as usize;
                 let transactions_per_second_message = format!(
@@ -335,7 +331,7 @@ impl Logger for DefaultLogger {
                     transactions_per_second
                 )
                 .bright_blue();
-                let micros_per_transaction = self
+                let time_per_transaction = self
                     .metrics
                     .recent_transactions
                     .iter()
@@ -343,14 +339,14 @@ impl Logger for DefaultLogger {
                         acc + *duration
                     })
                     / transaction_amount as u32;
-                let micros_per_transaction_message = format!(
+                let time_per_transaction_message = format!(
                     "AVERAGE TIME PER TRANSACTION: ~{:?}",
-                    micros_per_transaction
+                    time_per_transaction
                 )
                 .bright_blue();
                 info!("{}", state_message);
                 info!("{}", transactions_per_second_message);
-                info!("{}", micros_per_transaction_message);
+                info!("{}", time_per_transaction_message);
             }
             None => {
                 info!("{}", "NO TRANSACTIONS HANDLED YET".bright_blue());

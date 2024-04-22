@@ -20,10 +20,6 @@ use async_trait::async_trait;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 
-// Default retry intervals for transactions and events.
-const TRANSACTION_RETRY_INTERVAL_MS: u64 = 10_000;
-const EVENT_RETRY_INTERVAL_MS: u64 = 10_000;
-
 /// The main struct that processes transactions from a [`TransactionStream`].
 /// It processes transactions by calling a [`TransactionHandler`] for each transaction
 /// that has at least one event with an [`EventHandler`][crate::event_handler::EventHandler] registered.
@@ -78,10 +74,8 @@ where
             handler_registry,
             transaction_handler: Box::new(DefaultTransactionHandler),
             state,
-            transaction_retry_delay: Duration::from_millis(
-                TRANSACTION_RETRY_INTERVAL_MS,
-            ),
-            event_retry_delay: Duration::from_millis(EVENT_RETRY_INTERVAL_MS),
+            transaction_retry_delay: Duration::from_secs(10),
+            event_retry_delay: Duration::from_secs(10),
             logger: Some(Arc::new(
                 RwLock::new(Box::<DefaultLogger>::default()),
             )),

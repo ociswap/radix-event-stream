@@ -11,12 +11,6 @@ use sqlx::{postgres::PgConnectOptions, ConnectOptions};
 use std::{str::FromStr, time::Duration};
 use tokio::{sync::mpsc::Receiver, time::timeout};
 
-const DEFAULT_CAUGHT_UP_TIMEOUT_MS: u64 = 500;
-const DEFAULT_QUERY_TIMEOUT_MS: u64 = 30_000;
-const DEFAULT_STATE_VERSION: u64 = 1;
-const DEFAULT_PAGE_SIZE: u32 = 100_000;
-const DEFAULT_BUFFER_CAPACITY: u64 = 1_000_000;
-
 /// A transaction stream that fetches transactions directly from
 /// the PostgreSQL database associated with a Radix Gateway.
 /// It's more difficult to get access to a Radix Gateway database
@@ -27,49 +21,68 @@ const DEFAULT_BUFFER_CAPACITY: u64 = 1_000_000;
 #[derive(Debug)]
 pub struct DatabaseTransactionStream {
     state_version: u64,
-    handle: Option<tokio::task::JoinHandle<()>>,
+    join_handle: Option<tokio::task::JoinHandle<()>>,
     limit_per_page: u32,
     buffer_capacity: u64,
-    caught_up_timeout_ms: u64,
-    query_timeout_ms: u64,
+    caught_up_timeout: Duration,
+    query_timeout: Duration,
     database_url: String,
 }
 
+impl Default for DatabaseTransactionStream {
+    fn default() -> Self {
+        Self {
+            state_version: 1,
+            limit_per_page: 100_000,
+            join_handle: None,
+            buffer_capacity: 1_000_000,
+            caught_up_timeout: Duration::from_millis(500),
+            query_timeout: Duration::from_secs(30),
+            database_url: "".to_string(),
+        }
+    }
+}
+
 impl DatabaseTransactionStream {
+    /// Creates a new DatabaseTransactionStream with default settings and the given database URL.
     pub fn new(database_url: String) -> Self {
         Self {
-            state_version: DEFAULT_STATE_VERSION,
-            limit_per_page: DEFAULT_PAGE_SIZE,
-            handle: None,
-            buffer_capacity: DEFAULT_BUFFER_CAPACITY,
-            caught_up_timeout_ms: DEFAULT_CAUGHT_UP_TIMEOUT_MS,
-            query_timeout_ms: DEFAULT_QUERY_TIMEOUT_MS,
             database_url,
+            ..Self::default()
         }
     }
 
+    /// Sets the state version to start fetching transactions from.
     pub fn from_state_version(mut self, state_version: u64) -> Self {
         self.state_version = state_version;
         self
     }
 
+    /// Sets the max number of transactions to fetch per query.
     pub fn limit_per_page(mut self, limit_per_page: u32) -> Self {
         self.limit_per_page = limit_per_page;
         self
     }
 
+    /// Sets the buffer capacity of the channel through which transactions are sent to the transaction processor.
+    /// This is the maximum number of transactions that can be buffered before the stream starts to block.
+    /// If the stream is producing transactions faster than the transaction processor can consume them,
+    /// this buffer will fill up.
+    /// You may want to play with this value, based on the performance of the database and the transaction processor.
     pub fn buffer_capacity(mut self, capacity: u64) -> Self {
         self.buffer_capacity = capacity;
         self
     }
 
-    pub fn caught_up_timeout_ms(mut self, timeout_ms: u64) -> Self {
-        self.caught_up_timeout_ms = timeout_ms;
+    /// Sets the timeout to wait for after each poll of the database when the stream is caught up.
+    pub fn caught_up_timeout(mut self, timeout: Duration) -> Self {
+        self.caught_up_timeout = timeout;
         self
     }
 
-    pub fn query_timeout_ms(mut self, timeout_ms: u64) -> Self {
-        self.query_timeout_ms = timeout_ms;
+    /// Sets a duration after which a query will time out and be retried.
+    pub fn query_timeout(mut self, timeout: Duration) -> Self {
+        self.query_timeout = timeout;
         self
     }
 }
@@ -82,8 +95,8 @@ struct DatabaseFetcher {
     connection: sqlx::Pool<sqlx::Postgres>,
     limit_per_page: u32,
     state_version: u64,
-    caught_up_timeout_ms: u64,
-    query_timeout_ms: u64,
+    caught_up_timeout: Duration,
+    query_timeout: Duration,
     tx: tokio::sync::mpsc::Sender<Transaction>,
 }
 
@@ -92,8 +105,8 @@ impl DatabaseFetcher {
         database_url: String,
         limit_per_page: u32,
         state_version: u64,
-        caught_up_timeout_ms: u64,
-        query_timeout_ms: u64,
+        caught_up_timeout: Duration,
+        query_timeout: Duration,
         tx: tokio::sync::mpsc::Sender<Transaction>,
     ) -> Result<Self, anyhow::Error> {
         let options = PgConnectOptions::from_str(&database_url)
@@ -104,15 +117,15 @@ impl DatabaseFetcher {
             connection,
             limit_per_page,
             state_version,
-            caught_up_timeout_ms,
-            query_timeout_ms,
+            caught_up_timeout,
+            query_timeout,
             tx,
         })
     }
 
     /// Fetches the next batch of transactions from the database.
     async fn next_batch(&mut self) -> Result<Vec<Transaction>, anyhow::Error> {
-        let transactions: Vec<TransactionRecord> = timeout(Duration::from_millis(self.query_timeout_ms), sqlx::query_as!(
+        let transactions: Vec<TransactionRecord> = timeout(self.query_timeout, sqlx::query_as!(
             TransactionRecord,
             r#"
                 select
@@ -184,10 +197,7 @@ impl DatabaseFetcher {
             }
             let transactions = response.unwrap();
             if transactions.is_empty() {
-                tokio::time::sleep(tokio::time::Duration::from_millis(
-                    self.caught_up_timeout_ms,
-                ))
-                .await;
+                tokio::time::sleep(self.caught_up_timeout).await;
             }
 
             for transaction in transactions {
@@ -208,18 +218,18 @@ impl TransactionStream for DatabaseTransactionStream {
             self.database_url.clone(),
             self.limit_per_page,
             self.state_version,
-            self.caught_up_timeout_ms,
-            self.query_timeout_ms,
+            self.caught_up_timeout,
+            self.query_timeout,
             tx,
         )
         .await?;
         let handle = tokio::spawn(async move { fetcher.run().await });
-        self.handle = Some(handle);
+        self.join_handle = Some(handle);
         Ok(rx)
     }
 
     async fn stop(&mut self) {
-        if let Some(handle) = self.handle.take() {
+        if let Some(handle) = self.join_handle.take() {
             handle.abort();
         }
     }
