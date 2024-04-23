@@ -338,7 +338,7 @@ impl Logger for DefaultLogger {
                     .fold(Duration::from_secs(0), |acc, (_, duration)| {
                         acc + *duration
                     })
-                    / transaction_amount.min(1) as u32;
+                    / transaction_amount.max(1) as u32;
                 let time_per_transaction_message = format!(
                     "AVERAGE TIME PER TRANSACTION: ~{:?}",
                     time_per_transaction
