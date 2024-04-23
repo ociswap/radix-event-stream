@@ -226,8 +226,8 @@ impl Logger for DefaultLogger {
         if handling {
             self.metrics.transactions_handled += 1;
             let message = format!(
-                "###### END TRANSACTION - HANDLED IN {}ms ######",
-                time_spent.as_millis()
+                "###### END TRANSACTION - HANDLED IN {:?} ######",
+                time_spent
             )
             .bright_green();
             let line =
