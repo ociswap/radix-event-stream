@@ -196,7 +196,10 @@ impl Logger for DefaultLogger {
                     .expect("When handling a transaction it should always have a timestamp")
                     .format("%a %d-%m-%Y %H:%M")
             ).bright_green();
+            let transaction_id =
+                format!("{}", transaction.intent_hash).bright_green();
             info!("{}", message);
+            info!("{}", transaction_id);
         }
     }
 
