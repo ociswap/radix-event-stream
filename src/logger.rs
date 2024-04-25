@@ -29,7 +29,13 @@ pub struct StreamMetrics {
     pub time_started: Instant,
     pub last_seen_state_version: Option<u64>,
     pub last_seen_timestamp: Option<chrono::DateTime<Utc>>,
-    pub recent_transactions: VecDeque<(Instant, Duration)>,
+    pub recent_transactions: VecDeque<RecentTransaction>,
+}
+
+struct RecentTransaction {
+    time: Instant,
+    duration: Duration,
+    handling: bool,
 }
 
 impl Default for StreamMetrics {
@@ -214,9 +220,15 @@ impl Logger for DefaultLogger {
         let time_spent = self.transaction_stopwatch.elapsed();
         self.metrics
             .recent_transactions
-            .push_back((Instant::now(), time_spent));
+            .push_back(RecentTransaction {
+                time: Instant::now(),
+                duration: time_spent,
+                handling,
+            });
         let threshold = Instant::now() - METRIC_CONSIDERATION_INTERVAL;
-        while let Some(&(time, _)) = self.metrics.recent_transactions.front() {
+        while let Some(&RecentTransaction { time, .. }) =
+            self.metrics.recent_transactions.front()
+        {
             if time < threshold {
                 self.metrics.recent_transactions.pop_front();
             } else {
@@ -317,36 +329,50 @@ impl Logger for DefaultLogger {
                         .format("%a %d-%m-%Y %H:%M")
                 ).bright_blue();
 
-                let transaction_amount = self
+                let handled_transactions = self
                     .metrics
                     .recent_transactions
                     .iter()
-                    .filter(|(time, _)| {
+                    .filter(|RecentTransaction { time, handling, .. }| {
                         time > &(Instant::now() - METRIC_CONSIDERATION_INTERVAL)
-                    })
-                    .count();
-                let transactions_per_second = transaction_amount
+                            && *handling
+                    });
+
+                let seen_transactions = self
+                    .metrics
+                    .recent_transactions
+                    .iter()
+                    .filter(|RecentTransaction { time, .. }| {
+                        time > &(Instant::now() - METRIC_CONSIDERATION_INTERVAL)
+                    });
+
+                let handled_transaction_amount =
+                    handled_transactions.clone().count();
+
+                let seen_transaction_amount = seen_transactions.clone().count();
+
+                let transactions_handled_per_second = handled_transaction_amount
+                    / METRIC_CONSIDERATION_INTERVAL.as_secs().min(
+                        self.metrics.time_started.elapsed().as_secs().max(1),
+                    ) as usize;
+                let transactions_seen_per_second = seen_transaction_amount
                     / METRIC_CONSIDERATION_INTERVAL.as_secs().min(
                         self.metrics.time_started.elapsed().as_secs().max(1),
                     ) as usize;
                 let transactions_per_second_message = format!(
-                    "PROCESSING ~{} TRANSACTIONS PER SECOND",
-                    transactions_per_second
+                    "TRANSACTIONS - SEEN/s: {} - HANDLED/s: {}",
+                    transactions_seen_per_second,
+                    transactions_handled_per_second
                 )
                 .bright_blue();
-                let time_per_transaction = self
-                    .metrics
-                    .recent_transactions
-                    .iter()
-                    .fold(Duration::from_secs(0), |acc, (_, duration)| {
-                        acc + *duration
-                    })
-                    / transaction_amount.max(1) as u32;
-                let time_per_transaction_message = format!(
-                    "AVERAGE TIME PER TRANSACTION: ~{:?}",
-                    time_per_transaction
-                )
-                .bright_blue();
+                let time_per_transaction = handled_transactions.fold(
+                    Duration::from_secs(0),
+                    |acc, RecentTransaction { duration, .. }| acc + *duration,
+                ) / handled_transaction_amount.max(1)
+                    as u32;
+                let time_per_transaction_message =
+                    format!("AVG TIME HANDLING: {:?}", time_per_transaction)
+                        .bright_blue();
                 info!("{}", state_message);
                 info!("{}", transactions_per_second_message);
                 info!("{}", time_per_transaction_message);
