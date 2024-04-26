@@ -11,7 +11,7 @@ pub fn event_handler(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let fn_name = &input_fn.sig.ident;
     let struct_name = fn_name;
 
-    let context_arg = match input_fn
+    let input_arg = match input_fn
         .sig
         .inputs
         .first()
@@ -21,7 +21,7 @@ pub fn event_handler(_attr: TokenStream, item: TokenStream) -> TokenStream {
         _ => panic!("Expected a typed argument"),
     };
 
-    let generics = if let Type::Path(type_path) = context_arg {
+    let generics = if let Type::Path(type_path) = input_arg {
         let args = &type_path
             .path
             .segments
@@ -94,7 +94,7 @@ pub fn transaction_handler(
 
     // Extract the generic types from the context argument. This example assumes that
     // TransactionHandlerContext is the first argument and that it carries two generic types.
-    let context_arg = match input_fn
+    let input_arg = match input_fn
         .sig
         .inputs
         .first()
@@ -105,7 +105,7 @@ pub fn transaction_handler(
     };
 
     // Extract the TransactionHandlerContext's generic types
-    let generics = if let Type::Path(type_path) = context_arg {
+    let generics = if let Type::Path(type_path) = input_arg {
         let args = &type_path
             .path
             .segments

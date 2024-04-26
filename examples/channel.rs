@@ -19,7 +19,7 @@ struct State {
 pub struct InstantiateEvent {
     x_address: ResourceAddress,
     y_address: ResourceAddress,
-    context_fee_rate: Decimal,
+    inpu_fee_rate: Decimal,
     liquidity_pool_address: ComponentAddress,
     pool_address: ComponentAddress,
 }

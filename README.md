@@ -56,7 +56,7 @@ Below, the main usage steps are outlined. For more detailed information, see the
 struct InstantiateEvent {
     x_address: ResourceAddress,
     y_address: ResourceAddress,
-    context_fee_rate: Decimal,
+    input_fee_rate: Decimal,
     liquidity_pool_address: ComponentAddress,
     pool_address: ComponentAddress,
 }
