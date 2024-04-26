@@ -24,7 +24,7 @@ async fn add_to_database(
 pub struct InstantiateEvent {
     x_address: ResourceAddress,
     y_address: ResourceAddress,
-    context_fee_rate: Decimal,
+    input_fee_rate: Decimal,
     liquidity_pool_address: ComponentAddress,
     pool_address: ComponentAddress,
 }
@@ -66,11 +66,11 @@ async fn handle_instantiate_event(
 
 #[derive(ScryptoSbor, Debug)]
 pub struct SwapEvent {
-    context_address: ResourceAddress,
-    context_amount: Decimal,
+    input_address: ResourceAddress,
+    input_amount: Decimal,
     output_address: ResourceAddress,
     output_amount: Decimal,
-    context_fee_lp: Decimal,
+    input_fee_lp: Decimal,
 }
 
 #[event_handler]
