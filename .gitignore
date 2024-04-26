@@ -17,3 +17,5 @@ target/
 .env
 
 *.db
+
+flamegraph.svg

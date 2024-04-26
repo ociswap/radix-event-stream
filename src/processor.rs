@@ -1,348 +1,404 @@
+/*!
+# Transaction Stream Processor - Ties everything together and does the heavy lifting
+
+This module holds the main struct that processes transactions from a [`TransactionStream`],
+a default implementation of a [`TransactionHandler`], and a struct that processes events in a [`TransactionHandler`].
+*/
+
 use crate::{
     error::{
         EventHandlerError, TransactionHandlerError,
         TransactionStreamProcessorError,
     },
-    event_handler::{EventHandlerContext, HandlerRegistry},
+    event_handler::{EventHandlerContext, HandlerRegistry, State},
+    logger::{DefaultLogger, Logger},
     models::Transaction,
-    stream::{TransactionStream, TransactionStreamError},
+    stream::TransactionStream,
     transaction_handler::{TransactionHandler, TransactionHandlerContext},
 };
 use async_trait::async_trait;
-use colored::Colorize;
-use log::{error, info};
-use std::thread::sleep;
+use std::{sync::Arc, time::Duration};
+use tokio::sync::RwLock;
 
-/// Uses a `TransactionStream` to process transactions and
-/// events using a `HandlerRegistry`. Register event handlers
-/// using the `HandlerRegistry` and then call `run` to start
-/// processing transactions.
+/// The main struct that processes transactions from a [`TransactionStream`].
+/// It processes transactions by calling a [`TransactionHandler`] for each transaction
+/// that has at least one event with an [`EventHandler`][crate::event_handler::EventHandler] registered.
+/// It can be created using a builder pattern, where you can set the [`TransactionHandler`],
+/// retry intervals, and logger.
+///
+/// If you don't set a transaction handler explicitly, the processor will use a default handler
+/// that simply calls [`EventProcessor::process_events`] on the transaction, without any custom logic.
 #[allow(non_camel_case_types)]
-pub struct TransactionStreamProcessor<STREAM, STATE, TRANSACTION_CONTEXT>
+pub struct TransactionStreamProcessor<STREAM, STATE>
 where
     STREAM: TransactionStream,
-    STATE: Clone,
+    STATE: State,
 {
-    pub transaction_stream: STREAM,
-    pub handler_registry: HandlerRegistry<STATE, TRANSACTION_CONTEXT>,
-    pub transaction_handler:
-        Box<dyn TransactionHandler<STATE, TRANSACTION_CONTEXT>>,
-    pub state: STATE,
+    transaction_stream: STREAM,
+    handler_registry: HandlerRegistry,
+    transaction_handler: Box<dyn TransactionHandler<STATE>>,
+    state: STATE,
+    transaction_retry_delay: Duration,
+    event_retry_delay: Duration,
+    logger: Option<Arc<RwLock<Box<dyn Logger>>>>,
+    periodic_logging_joinhandle: Option<tokio::task::JoinHandle<()>>,
 }
 
 #[allow(non_camel_case_types)]
-impl<STREAM, STATE, TRANSACTION_CONTEXT>
-    TransactionStreamProcessor<STREAM, STATE, TRANSACTION_CONTEXT>
+impl<STREAM, STATE> TransactionStreamProcessor<STREAM, STATE>
 where
     STREAM: TransactionStream,
-    STATE: Clone,
+    STATE: State,
 {
-    /// Creates a new `TransactionStreamProcessor` with the given
-    /// `TransactionStream`, `HandlerRegistry`, `TransactionHandler`
-    /// and initial `STATE`.
+    /// Creates a new [`TransactionStreamProcessor`] with the given
+    /// [`TransactionStream`], [`HandlerRegistry`], and `STATE`.
+    ///
+    /// - The [`TransactionHandler`] is set to a default handler that
+    /// simply calls [`EventProcessor::process_events`] on the transaction, without
+    /// any custom logic.
+    ///
+    /// - The default retry intervals for transactions and events are
+    /// set to 10 seconds.
+    ///
+    /// - The logger is set to a default logger that logs to stdout.
+    ///
+    /// Change the default handler, retry intervals, or logger using
+    /// the builder methods.
     pub fn new(
         transaction_stream: STREAM,
-        handler_registry: HandlerRegistry<STATE, TRANSACTION_CONTEXT>,
-        transaction_handler: impl TransactionHandler<STATE, TRANSACTION_CONTEXT>
-            + 'static,
+        handler_registry: HandlerRegistry,
         state: STATE,
     ) -> Self {
-        TransactionStreamProcessor {
+        Self {
             transaction_stream,
             handler_registry,
-            transaction_handler: Box::new(transaction_handler),
+            transaction_handler: Box::new(DefaultTransactionHandler),
             state,
+            transaction_retry_delay: Duration::from_secs(10),
+            event_retry_delay: Duration::from_secs(10),
+            logger: Some(Arc::new(
+                RwLock::new(Box::<DefaultLogger>::default()),
+            )),
+            periodic_logging_joinhandle: None,
         }
     }
 
+    /// Sets the [`TransactionHandler`] for the processor.
+    /// This handler is called for each transaction that has at least one event which
+    /// has event handlers registered.
+    pub fn transaction_handler(
+        self,
+        transaction_handler: impl TransactionHandler<STATE>,
+    ) -> Self {
+        Self {
+            transaction_handler: Box::new(transaction_handler),
+            ..self
+        }
+    }
+
+    /// Sets the retry delay for transactions that fail to process and return a `TransactionRetryError`
+    /// (see [`crate::error::TransactionHandlerError`]).
+    pub fn transaction_retry_delay(
+        self,
+        transaction_retry_delay: Duration,
+    ) -> Self {
+        Self {
+            transaction_retry_delay,
+            ..self
+        }
+    }
+
+    /// Sets the retry delay for events that fail to process and return an `EventRetryError`.
+    /// (see [`crate::error::EventHandlerError`]).
+    pub fn event_retry_delay(self, event_retry_delay: Duration) -> Self {
+        Self {
+            event_retry_delay,
+            ..self
+        }
+    }
+
+    /// Sets the logger for the processor. It should implement the [`Logger`] trait.
+    pub fn logger(self, logger: impl Logger + 'static) -> Self {
+        Self {
+            logger: Some(Arc::new(RwLock::new(Box::new(logger)))),
+            ..self
+        }
+    }
+
+    /// Sets the logger for the processor to the default logger, but with
+    /// a custom report interval given by `interval`.
+    pub fn default_logger_with_report_interval(
+        self,
+        interval: Duration,
+    ) -> Self {
+        Self {
+            logger: Some(Arc::new(RwLock::new(Box::new(
+                DefaultLogger::with_custom_report_interval(interval),
+            )))),
+            ..self
+        }
+    }
+
+    /// Disables logging for the processor by setting the logger to `None`.
+    pub fn disable_logging(self) -> Self {
+        Self {
+            logger: None,
+            ..self
+        }
+    }
+
+    /// Processes a single transaction.
+    ///
+    /// Returns:
+    /// - `Ok(true)` if the transaction was processed successfully,
+    /// - `Ok(false)` if the transaction was skipped because it had no handlers,
+    /// - `Err(TransactionStreamProcessorError)` if an unrecoverable error occurred somewhere in a handler.
     pub async fn process_transaction(
         &mut self,
         transaction: &Transaction,
-    ) -> Result<(), TransactionStreamProcessorError> {
+    ) -> Result<bool, TransactionStreamProcessorError> {
         // Find out if there are any events inside this transaction
         // that have a handler registered.
         let handler_exists = transaction.events.iter().any(|event| {
             self.handler_registry
-                .get_handler(event.emitter.address(), &event.name)
-                .is_some()
+                .handler_exists(event.emitter.address(), &event.name)
         });
+
+        if let Some(logger) = &self.logger {
+            logger
+                .write()
+                .await
+                .receive_transaction(transaction, handler_exists, false)
+                .await;
+        }
+
         if !handler_exists {
             // If there are no handlers for any of the events in this transaction,
             // we can skip processing it.
-            return Ok(());
+            return Ok(false);
         }
-        info!(
-            "{}",
-            "--------------------------------------------------------"
-                .bright_blue()
-        );
-        info!(
-            "{}",
-            format!(
-                "HANDLING TRANSACTION - {:#?} - {}",
-                transaction.state_version,
-                transaction.confirmed_at
-                    .expect("When handling a transaction it should always have a timestamp")
-                    .format("%a %d-%m-%Y %H:%M")
-            )
-            .bright_green()
-        );
 
         // Keep trying to handle the transaction in case
-        // the user requests this through a TransactionHandlerError.
+        // the handler requests this through a TransactionHandlerError.
         while let Err(err) = self
             .transaction_handler
             .handle(TransactionHandlerContext {
                 state: &mut self.state,
                 transaction,
+                event_processor: &mut EventProcessor {
+                    event_retry_interval: self.event_retry_delay,
+                    transaction,
+                    logger: &self.logger,
+                },
                 handler_registry: &mut self.handler_registry,
             })
             .await
         {
             match err {
                 TransactionHandlerError::TransactionRetryError(e) => {
-                    error!(
-                        "{}",
-                        format!("ERROR HANDLING TRANSACTION: {}", e)
-                            .bright_red()
-                    );
-                    info!(
-                        "{}",
-                        "RETRYING TRANSACTION IN 10 SECONDS\n".bright_yellow()
-                    );
-                    sleep(std::time::Duration::from_secs(10));
-                    info!(
-                                "{}",
-                                format!(
-                                    "RETRYING TRANSACTION - {:#?} - {}",
-                                    transaction.state_version,
-                                    transaction.confirmed_at
-                                        .expect("When handling a transaction it should always have a timestamp")
-                                        .to_rfc3339()
-                                )
-                                .bright_yellow()
-                            );
+                    if let Some(logger) = &self.logger {
+                        logger
+                            .write()
+                            .await
+                            .transaction_retry_error(
+                                transaction,
+                                &e,
+                                self.transaction_retry_delay,
+                            )
+                            .await;
+                    }
+                    tokio::time::sleep(self.transaction_retry_delay).await;
+                    if let Some(logger) = &self.logger {
+                        logger
+                            .write()
+                            .await
+                            .receive_transaction(
+                                transaction,
+                                handler_exists,
+                                true,
+                            )
+                            .await;
+                    }
                     continue;
                 }
-                TransactionHandlerError::UnrecoverableError(err) => {
-                    error!(
-                        "{}",
-                        format!("FATAL ERROR HANDLING TRANSACTION: {}\n", err)
-                            .bright_red()
-                    );
+                TransactionHandlerError::UnrecoverableError(e) => {
+                    if let Some(logger) = &self.logger {
+                        logger.write().await.unrecoverable_error(&e).await;
+                    }
                     return Err(
-                        TransactionStreamProcessorError::UnrecoverableError(
-                            err,
-                        ),
+                        TransactionStreamProcessorError::UnrecoverableError(e),
                     );
                 }
             }
         }
-        info!("{}", "###### END TRANSACTION ######".bright_green());
-        info!(
-            "{}",
-            "--------------------------------------------------------"
-                .bright_blue()
-        );
-        Ok(())
+
+        Ok(true)
     }
 
-    /// Starts processing transactions from the `TransactionStream`.
+    /// Starts processing transactions from the [`TransactionStream`].
     pub async fn run(&mut self) -> Result<(), TransactionStreamProcessorError> {
-        // Keep processing in an infinite loop.
-        loop {
-            let transactions = match self.transaction_stream.next().await {
-                Err(error) => match error {
-                    TransactionStreamError::CaughtUp => {
-                        info!("No more transactions, sleeping for 1 second...");
-                        std::thread::sleep(std::time::Duration::from_secs(1));
-                        continue;
-                    }
-                    TransactionStreamError::Finished => {
-                        info!(
-                            "{}",
-                            "Finished processing transactions".bright_red()
-                        );
-                        return Ok(());
-                    }
-                    TransactionStreamError::Error(error) => {
-                        error!("Error while getting transactions: {}", error);
-                        std::thread::sleep(std::time::Duration::from_secs(1));
-                        continue;
-                    }
-                },
-                Ok(transactions) => transactions,
-            };
-
-            // Process each transaction.
-            for transaction in transactions.iter() {
-                self.process_transaction(transaction).await?;
+        // Start the transaction stream and get a receiver.
+        // This often involves starting a task that fetches transactions
+        // from a remote source and sends them to the receiver.
+        let mut receiver =
+            self.transaction_stream.start().await.map_err(|error| {
+                TransactionStreamProcessorError::UnrecoverableError(error)
+            })?;
+        let logger = self.logger.clone();
+        self.periodic_logging_joinhandle = if let Some(logger) = logger {
+            let interval = logger.read().await.periodic_report_interval();
+            Some(tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(interval).await;
+                    logger.read().await.periodic_report().await;
+                }
+            }))
+        } else {
+            None
+        };
+        // Process transactions as they arrive.
+        while let Some(transaction) = receiver.recv().await {
+            let handled = self.process_transaction(&transaction).await?;
+            if let Some(logger) = &self.logger {
+                logger
+                    .write()
+                    .await
+                    .finish_transaction(&transaction, handled)
+                    .await;
             }
         }
-    }
+        // If the transmitting half of the channel is dropped,
+        // the receiver will return None and we will exit the loop.
+        // The processor will exit gracefully.
 
-    // Shorthand for running the processor with the required parameters.
-    pub async fn run_with(
-        transaction_stream: STREAM,
-        handler_registry: HandlerRegistry<STATE, TRANSACTION_CONTEXT>,
-        transaction_handler: impl TransactionHandler<STATE, TRANSACTION_CONTEXT>
-            + 'static,
-        state: STATE,
-    ) -> Result<(), TransactionStreamProcessorError> {
-        let mut processor = TransactionStreamProcessor::new(
-            transaction_stream,
-            handler_registry,
-            transaction_handler,
-            state,
-        );
-        processor.run().await
+        if let Some(handle) = self.periodic_logging_joinhandle.take() {
+            handle.abort();
+        }
+        Ok(())
     }
 }
 
-/// A simple wrapper around `TransactionStreamProcessor` that uses
-/// a default transaction handler that simply calls `process_events`
-/// on the transaction. This is useful for simple use cases where
-/// you don't need any custom transaction handling logic.
-#[allow(non_camel_case_types)]
-pub struct SimpleTransactionStreamProcessor<STREAM, STATE>
-where
-    STREAM: TransactionStream,
-    STATE: Clone,
-{
-    processor: TransactionStreamProcessor<STREAM, STATE, ()>,
-}
-
-#[allow(non_camel_case_types)]
-impl<STREAM, STATE> SimpleTransactionStreamProcessor<STREAM, STATE>
-where
-    STREAM: TransactionStream,
-    STATE: Clone + 'static + Send + Sync,
-{
-    pub fn new(
-        transaction_stream: STREAM,
-        handler_registry: HandlerRegistry<STATE, ()>,
-        state: STATE,
-    ) -> Self {
-        let processor: TransactionStreamProcessor<STREAM, STATE, ()> =
-            TransactionStreamProcessor::new(
-                transaction_stream,
-                handler_registry,
-                DefaultTransactionHandler {},
-                state,
-            );
-        SimpleTransactionStreamProcessor { processor }
-    }
-
-    pub async fn run(&mut self) -> Result<(), TransactionStreamProcessorError> {
-        self.processor.run().await
-    }
-
-    pub async fn run_with(
-        transaction_stream: STREAM,
-        handler_registry: HandlerRegistry<STATE, ()>,
-        state: STATE,
-    ) -> Result<(), TransactionStreamProcessorError> {
-        let mut processor = SimpleTransactionStreamProcessor::new(
-            transaction_stream,
-            handler_registry,
-            state,
-        );
-        processor.run().await
-    }
-}
-
-/// A default transaction handler that simply calls `process_events`
+/// A default transaction handler that simply calls [`EventProcessor::process_events`]
 /// on the transaction, without any custom logic.
 #[derive(Clone)]
 struct DefaultTransactionHandler;
 
 #[async_trait]
-impl<STATE> TransactionHandler<STATE, ()> for DefaultTransactionHandler
+impl<STATE> TransactionHandler<STATE> for DefaultTransactionHandler
 where
-    STATE: Clone + Send + Sync,
+    STATE: State,
 {
     async fn handle(
         &self,
-        input: TransactionHandlerContext<'_, STATE, ()>,
+        input: TransactionHandlerContext<'_, STATE>,
     ) -> Result<(), TransactionHandlerError> {
         input
-            .transaction
+            .event_processor
             .process_events(input.state, input.handler_registry, &mut ())
-            .await
-            .unwrap();
+            .await?;
         Ok(())
     }
 }
 
+/// The [`EventProcessor`]'s only purpose is to have a convenience method to process events in a transaction.
+/// The user calls [`EventProcessor::process_events`] when implementing a custom [`TransactionHandler`].
+/// It will iterate over the events in the transaction and call the appropriate event handlers.
+/// It handles retries for events that fail to process, and calls logging hooks.
+/// It is highly recommended to use this method when implementing a custom [`TransactionHandler`].
+pub struct EventProcessor<'a> {
+    event_retry_interval: Duration,
+    transaction: &'a Transaction,
+    logger: &'a Option<Arc<RwLock<Box<dyn Logger>>>>,
+}
+
 #[allow(non_camel_case_types)]
-impl Transaction {
-    /// Convenience method which iterates over the events in the
-    /// transaction and calls the appropriate event handler
-    /// for events which have a handler
-    /// registered in the `HandlerRegistry`.
-    ///
-    /// When event handlers return an `EventHandlerError::EventRetryError`,
-    /// this method will keep retrying handling the event until it succeeds.
-    /// Please consider that event handlers may be called multiple times
-    /// in this case, so they must be idempotent at least up to the point
-    /// where the error occurred.
-    pub async fn process_events<STATE, TRANSACTION_CONTEXT>(
+impl<'a> EventProcessor<'a> {
+    pub async fn process_events<STATE: State, TRANSACTION_CONTEXT: 'static>(
         &self,
         state: &mut STATE,
-        handler_registry: &mut HandlerRegistry<STATE, TRANSACTION_CONTEXT>,
+        handler_registry: &mut HandlerRegistry,
         transaction_context: &mut TRANSACTION_CONTEXT,
-    ) -> Result<(), EventHandlerError>
-    where
-        STATE: Clone,
-    {
-        for event in self.events.iter() {
+    ) -> Result<(), EventHandlerError> {
+        for event in self.transaction.events.iter() {
+            let handler_exists = handler_registry
+                .handler_exists(event.emitter.address(), &event.name);
+            if !handler_exists {
+                continue;
+            }
+            if let Some(logger) = self.logger {
+                logger
+                    .write()
+                    .await
+                    .receive_event(
+                        self.transaction,
+                        event,
+                        handler_exists,
+                        false,
+                    )
+                    .await;
+            }
             let event_handler = {
-                let handler = match handler_registry
-                    .get_handler(event.emitter.address(), &event.name)
-                {
-                    Some(handler) => handler,
-                    None => continue,
-                };
-                handler
+                handler_registry
+                    .get_handler::<STATE, TRANSACTION_CONTEXT>(
+                        event.emitter.address(),
+                        &event.name,
+                    )
+                    .unwrap()
             };
             let event_handler = event_handler.clone();
-            info!(
-                "{}",
-                format!("HANDLING EVENT: {}", event.name).bright_yellow()
-            );
             while let Err(err) = event_handler
                 .handle(
                     EventHandlerContext {
                         state,
-                        transaction: self,
+                        transaction: self.transaction,
                         event,
                         handler_registry,
                         transaction_context,
                     },
-                    event.binary_sbor_data.clone(),
+                    &event.binary_sbor_data,
                 )
                 .await
             {
                 match err {
                     EventHandlerError::EventRetryError(e) => {
-                        error!(
-                            "{}",
-                            format!("ERROR HANDLING EVENT: {}", e).bright_red()
-                        );
-
-                        info!("{}", "RETRYING IN 10 SECONDS\n".bright_yellow());
-                        sleep(std::time::Duration::from_secs(10));
-                        info!(
-                            "{}",
-                            format!("RETRYING HANDLING EVENT: {}", event.name)
-                                .bright_yellow()
-                        );
+                        if let Some(logger) = self.logger {
+                            logger
+                                .write()
+                                .await
+                                .event_retry_error(
+                                    self.transaction,
+                                    event,
+                                    &e,
+                                    self.event_retry_interval,
+                                )
+                                .await;
+                        }
+                        tokio::time::sleep(self.event_retry_interval).await;
+                        if let Some(logger) = self.logger {
+                            logger
+                                .write()
+                                .await
+                                .receive_event(
+                                    self.transaction,
+                                    event,
+                                    handler_exists,
+                                    true,
+                                )
+                                .await;
+                        }
                         continue;
                     }
                     _ => {
                         return Err(err);
                     }
                 }
+            }
+            if let Some(logger) = self.logger {
+                logger
+                    .write()
+                    .await
+                    .finish_event(self.transaction, event, handler_exists)
+                    .await;
             }
         }
         Ok(())

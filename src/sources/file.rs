@@ -1,12 +1,12 @@
+//! A transaction stream that fetches transactions from a YAML or JSON file.
+
 use std::{fs::File, path::Path};
 
 use async_trait::async_trait;
 use serde::Deserialize;
+use tokio::sync::mpsc::Receiver;
 
-use crate::{
-    models::Transaction,
-    stream::{TransactionStream, TransactionStreamError},
-};
+use crate::{models::Transaction, stream::TransactionStream};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct FileTransaction {
@@ -16,15 +16,19 @@ pub struct FileTransaction {
     pub events: Vec<radix_client::gateway::models::Event>,
 }
 
-impl Into<Transaction> for FileTransaction {
-    fn into(self) -> Transaction {
-        Transaction {
-            intent_hash: self.intent_hash,
-            state_version: self.state_version,
+impl From<FileTransaction> for Transaction {
+    fn from(transaction: FileTransaction) -> Self {
+        Self {
+            intent_hash: transaction.intent_hash,
+            state_version: transaction.state_version,
             confirmed_at: Some(chrono::DateTime::from_timestamp_nanos(
-                self.unix_timestamp_nanos,
+                transaction.unix_timestamp_nanos,
             )),
-            events: self.events.into_iter().map(|event| event.into()).collect(),
+            events: transaction
+                .events
+                .into_iter()
+                .map(|event| event.into())
+                .collect(),
         }
     }
 }
@@ -52,25 +56,24 @@ impl FileTransactionStream {
             _ => panic!("Unsupported file type"),
         };
 
-        FileTransactionStream { transactions }
+        Self { transactions }
     }
 }
 
 #[async_trait]
 impl TransactionStream for FileTransactionStream {
-    async fn next(
-        &mut self,
-    ) -> Result<Vec<Transaction>, TransactionStreamError> {
-        if self.transactions.is_empty() {
-            return Err(TransactionStreamError::Finished);
-        }
-
+    async fn start(&mut self) -> Result<Receiver<Transaction>, anyhow::Error> {
+        let (tx, rx) = tokio::sync::mpsc::channel(32);
         let transactions = self.transactions.clone();
-        self.transactions.clear();
-        let transactions: Vec<Transaction> = transactions
-            .into_iter()
-            .map(|transaction| transaction.into())
-            .collect();
-        Ok(transactions)
+        tokio::spawn(async move {
+            for transaction in transactions.into_iter() {
+                if tx.send(transaction.into()).await.is_err() {
+                    break;
+                }
+            }
+        });
+        Ok(rx)
     }
+    // no task is spawned, so no need to do anything on stop
+    async fn stop(&mut self) {}
 }

@@ -1,3 +1,5 @@
+//! Error types for event handlers, transaction handlers, and processors.
+
 /// Error type which is returned from an event
 /// handler by the user on failure.
 #[derive(Debug)]
@@ -38,10 +40,10 @@ impl From<EventHandlerError> for TransactionHandlerError {
                 panic!("Event retries should be handled at the event level, not the transaction level")
             }
             EventHandlerError::TransactionRetryError(e) => {
-                TransactionHandlerError::TransactionRetryError(e)
+                Self::TransactionRetryError(e)
             }
             EventHandlerError::UnrecoverableError(e) => {
-                TransactionHandlerError::UnrecoverableError(e)
+                Self::UnrecoverableError(e)
             }
         }
     }

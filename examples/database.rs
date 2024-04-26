@@ -5,7 +5,7 @@ use radix_engine_common::ScryptoSbor;
 use radix_event_stream::event_handler::HandlerRegistry;
 use radix_event_stream::macros::event_handler;
 use radix_event_stream::processor::TransactionStreamProcessor;
-use radix_event_stream::sources::gateway::GatewayTransactionStream;
+use radix_event_stream::sources::database::DatabaseTransactionStream;
 use std::env;
 
 #[derive(Debug, Clone)]
@@ -41,7 +41,7 @@ async fn main() {
     env_logger::init();
 
     // Create a new handler registry
-    let mut handler_registry: HandlerRegistry = HandlerRegistry::new();
+    let mut handler_registry = HandlerRegistry::new();
 
     // Add the instantiate event handler to the registry
     handler_registry.add_handler(
@@ -52,11 +52,14 @@ async fn main() {
 
     // Create a new transaction stream, which the processor will use
     // as a source of transactions.
-    let stream = GatewayTransactionStream::new()
-        .gateway_url("https://mainnet.radixdlt.com".to_string())
-        .from_state_version(71500000)
-        .buffer_capacity(1000)
-        .limit_per_page(100);
+    let stream = DatabaseTransactionStream::new(
+        // This database is public, but I would recommend not using it for anything outside
+        // of testing.
+        "postgresql://radix:radix@db.radix.live/radix_ledger".to_string(),
+    )
+    .from_state_version(1919391)
+    .buffer_capacity(1_000_000)
+    .limit_per_page(100_000);
 
     // Start with parameters.
     TransactionStreamProcessor::new(

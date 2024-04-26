@@ -1,6 +1,7 @@
 pub mod encodings;
 pub mod error;
 pub mod event_handler;
+pub mod logger;
 pub mod macros;
 pub mod models;
 pub mod processor;

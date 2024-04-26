@@ -6,13 +6,13 @@
 
 ### ✅ Extensible:
 
-Easily identify and process custom events by implementing event handlers.
+Easily identify and process custom events by implementing event handlers. Implement custom logging and collect metrics.
 
 ### ✅ Data source agnostic:
 
-Pick from one of the provided data sources (Radix Gateway, file) or easily implement your own.
+Pick from one of the provided data sources (Radix Gateway, Radix Gateway database, file) or easily implement your own.
 
-### ✅ Easy to use:
+### ✅ Easy to get started with:
 
 Simply pick a transaction source, register your handlers and start the stream.
 
@@ -47,6 +47,8 @@ Each event has an **emitter**. This is the on-ledger entity that emitted the eve
 
 ## General usage.
 
+Below, the main usage steps are outlined. For more detailed information, see the cargo docs.
+
 ### Step 1: copy/paste event definitions.
 
 ```Rust
@@ -64,10 +66,9 @@ Above, we see an event definition used in one of Ociswap's Basic pools. It deriv
 
 ### Step 2: Define a global state.
 
-This will be mutably shared with every transaction handler. It should at least implement Clone. If you need to share this data with other pieces of code you may choose to store items wrapped in Rc, RefCell, Arc, Mutex, etc.
+This will be mutably shared with every transaction handler. If you need to share this data with other pieces of code you may choose to store items wrapped in Arc, Mutex, etc.
 
 ```rust
-#[derive(Clone)]
 struct State {
     instantiate_events_seen: u64
 }
@@ -119,7 +120,7 @@ A concrete example:
 ```Rust
 #[event_handler]
 async fn handle_instantiate_event(
-    context: EventHandlerContext<AppState>,
+    context: EventHandlerContext<State>,
     event: InstantiateEvent,
 ) -> Result<(), EventHandlerError> {
     info!(
@@ -157,8 +158,7 @@ By returning different errors, you may control how the stream behaves. It can re
 Create a handler registry:
 
 ```Rust
-let mut handler_registry: HandlerRegistry<AppState> =
-    HandlerRegistry::new();
+let mut handler_registry = HandlerRegistry::new();
 ```
 
 Add any handlers to the registry, identified by emitters and event names. In this case, we would like to handle `InstantiateEvent` events emitted by Ociswap's Basic pool package address.
@@ -176,34 +176,29 @@ Note that you can also register new handlers inside a handler. This is necessary
 
 ### Step 5: Pick a source.
 
-The library holds a few different transaction stream sources out of the box: A Radix Gateway stream based on our radix-client crate, a file stream, and a channel stream. It is also quite easy to implement your own custom stream, to allow getting events from a database, for example.
+The library holds a few different transaction stream sources out of the box: A Radix Gateway stream based on our radix-client crate, a database stream which fetches directly from the Gateway PostgreSQL database, a file stream, and a channel stream. It is also possible to implement custom streams.
 
 Let's use the gateway stream:
 
 ```Rust
-    let stream = GatewayTransactionStream::new(
-        1919391, // State version to start at
-        100, // Items per page to request
-        "https://mainnet.radixdlt.com".to_string(),
-    );
+// For some of the included streams, a builder pattern is used.
+let stream = GatewayTransactionStream::new()
+    .gateway_url("https://mainnet.radixdlt.com".to_string())
+    .from_state_version(1919391)
+    .buffer_capacity(1000)
+    .limit_per_page(100);
 ```
 
-A transaction stream implements the `TransactionStream` trait, which has a `next()` method. This method returns a new batch of transactions to process. It can also return one of the following errors:
+A transaction stream implements the `TransactionStream` trait. This trait has a `start()` and a `stop()` method. `start()` may start a new asynchronous task, which pushes `Transaction` items to the `Receiver` which is returned by the method. Having a channel allows the transaction stream to fetch and buffer transactions independently of the rest of the framework.
 
 ```rust
-enum TransactionStreamError {
-    /// The stream is caught up with the latest transactions.
-    /// The processor should wait for new transactions and try again.
-    CaughtUp,
-    /// The stream is finished and there are no more transactions.
-    /// The processor should stop processing transactions.
-    Finished,
-    /// An error occurred while processing the stream.
-    Error(String),
+trait TransactionStream {
+    async fn start(&mut self) -> Result<Receiver<Transaction>, anyhow::Error>;
+    async fn stop(&mut self);
 }
 ```
 
-A gateway stream would never return `Finished`, because there will always be new transactions to handle. A file stream would only return `Finished` when there are no more transactions. In that case, the stream would exit with an Ok() value.
+See `stream.rs` for more information.
 
 ### Step 6: Define a transaction handler and transaction context. (Optional)
 
@@ -212,7 +207,6 @@ To make the transaction stream have any kind of sense of ledger transactions, we
 Custom transaction handlers can pass a custom transaction context to event handlers. This gives event handlers access to a database transaction for example, so that each handler can do inserts inside that transaction. Let's define a custom transaction context struct:
 
 ```rust
-// pseudocode
 struct TransactionContext {
     tx: YOUR_DATABASE_TRANSACTION
 }
@@ -231,7 +225,7 @@ async fn transaction_handler_name(
     // and the global state. It is parametrized by the
     // app state and the transaction context type, but the context is optional,
     // and defaults to the unit type.
-    context: TransactionHandlerContext<YOUR_STATE, YOUR_TRANSACTION_CONTEXT_TYPE>,
+    context: TransactionHandlerContext<YOUR_STATE>,
 ) -> Result<(), TransactionHandlerError> {
     // Do something like start a database transaction
     let mut transaction_context = TransactionContext { tx: start_transaction() }
@@ -239,7 +233,7 @@ async fn transaction_handler_name(
     // Handle the events inside the incoming transaction.
     // We provide a simple method for this.
     context
-        .transaction
+        .event_processor
         .process_events(
             context.state,
             context.handler_registry,
@@ -265,42 +259,26 @@ async fn transaction_handler_name(
 }
 ```
 
-The `TransactionHandlerContext` holds a reference to the incoming transaction. A method called `process_events` is implemented on this struct. Calling it will iterate through the events inside the transactions and process the events which have handlers registered. It is highly recommended to use this method in your transaction handler. It is possible to implement your own loop, but it is an integral part of the library and also handles the event retry logic and some logging.
-
-Simplest concrete example:
-
-```rust
-#[transaction_handler]
-async fn transaction_handler(
-    context: TransactionHandlerContext<AppState, ()>,
-) -> Result<(), TransactionHandlerError> {
-    // Do something before handling events
-    context
-        .transaction
-        .process_events(context.state, context.handler_registry)?;
-    // Do something after handling events
-    Ok(())
-}
-```
+The `TransactionHandlerContext` holds a struct called `EventProcessor`. A method called `process_events` is implemented on this struct. Calling it will iterate through the events inside the transactions and process the events which have handlers registered. It is highly recommended to use this method in your transaction handler. It is possible to implement your own loop, but the provided method is an integral part of the library and also handles the event retry logic and integrates with logging.
 
 ### Step 7: Run the stream processor.
 
 The `TransactionStreamProcessor` is what ties everything together. It is responsible for getting new transactions from the stream we selected, and calling the transaction handler which in turn calls the event handlers.
 
-Use the `run_with` method to start the processor, passing in the components we created and the initial app state.
+We can use a builder pattern to construct one and run it. It takes a few required parameters directly in the `new()` method, but you can set some optional behavior using the builder methods.
+
+Use `run()` to start.
 
 ```rust
-TransactionStreamProcessor::run_with(
-            stream,
-            handler_registry,
-            transaction_handler,
-            State {
-                instantiate_events_seen: 0
-            },
-        );
-```
+let state = State { instantiate_events_seen: 0 };
 
-There also exists a `SimpleTransactionStreamProcessor`, which does not require a transaction handler. It simply calls the `process_events` method from the previous step and nothing else. It's easier to set up and recommended in the case where you do not need transaction-level handling.
+TransactionStreamProcessor::new(stream, handler_registry, state)
+    .transaction_handler(transaction_handler)
+    .default_logger_with_report_interval(Duration::from_millis(500))
+    .run()
+    .await
+    .unwrap();
+```
 
 # More info
 

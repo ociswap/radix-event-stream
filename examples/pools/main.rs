@@ -4,6 +4,7 @@ use crate::basicv0::events;
 use log::error;
 use radix_engine_common::network::NetworkDefinition;
 use radix_event_stream::macros::transaction_handler;
+use radix_event_stream::sources::database::DatabaseTransactionStream;
 use radix_event_stream::transaction_handler::TransactionHandler;
 use radix_event_stream::{
     event_handler::HandlerRegistry,
@@ -13,6 +14,7 @@ use radix_event_stream::{
 use sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
 use std::env;
 use std::sync::Arc;
+use std::time::Duration;
 
 #[tokio::main]
 async fn main() {
@@ -48,8 +50,7 @@ async fn main() {
     .unwrap();
 
     // Create a new handler registry for event handlers
-    let mut handler_registry: HandlerRegistry<State, TransactionContext> =
-        HandlerRegistry::new();
+    let mut handler_registry = HandlerRegistry::new();
 
     // Add the 'InstantiateEvent' handler to the registry
     handler_registry.add_handler(
@@ -60,14 +61,14 @@ async fn main() {
 
     #[transaction_handler]
     async fn transaction_handler(
-        context: TransactionHandlerContext<State, TransactionContext>,
+        context: TransactionHandlerContext<State>,
     ) -> Result<(), TransactionHandlerError> {
         let tx = context.state.pool.begin().await.unwrap();
         let mut transaction_context = TransactionContext { transaction: tx };
 
         // Handle the events in the transaction
         context
-            .transaction
+            .event_processor
             .process_events(
                 context.state,
                 context.handler_registry,
@@ -87,6 +88,9 @@ async fn main() {
         "gateway" => {
             run_from_gateway(handler_registry, pool, transaction_handler).await
         }
+        "database" => {
+            run_from_database(handler_registry, pool, transaction_handler).await
+        }
         _ => {
             unreachable!();
         }
@@ -94,10 +98,9 @@ async fn main() {
 }
 
 async fn run_from_file(
-    handler_registry: HandlerRegistry<State, TransactionContext>,
+    handler_registry: HandlerRegistry,
     pool: Pool<Sqlite>,
-    transaction_handler: impl TransactionHandler<State, TransactionContext>
-        + 'static,
+    transaction_handler: impl TransactionHandler<State> + 'static,
 ) {
     // Create a new transaction stream from a file, which the processor will use
     // as a source of transactions.
@@ -105,46 +108,75 @@ async fn run_from_file(
         "examples/pools/transactions.json".to_string(),
     );
 
+    let state = State {
+        number: 0,
+        pool: Arc::new(pool),
+        network: NetworkDefinition::mainnet(),
+    };
+
     // Start with parameters.
-    TransactionStreamProcessor::run_with(
-        stream,
-        handler_registry,
-        transaction_handler,
-        State {
-            number: 0,
-            pool: Arc::new(pool),
-            network: NetworkDefinition::mainnet(),
-        },
-    )
-    .await
-    .unwrap();
+    TransactionStreamProcessor::new(stream, handler_registry, state)
+        .transaction_handler(transaction_handler)
+        .run()
+        .await
+        .unwrap();
 }
 
 async fn run_from_gateway(
-    handler_registry: HandlerRegistry<State, TransactionContext>,
+    handler_registry: HandlerRegistry,
     pool: Pool<Sqlite>,
-    transaction_handler: impl TransactionHandler<State, TransactionContext>
-        + 'static,
+    transaction_handler: impl TransactionHandler<State> + 'static,
 ) {
     // Create a new transaction stream, which the processor will use
     // as a source of transactions.
-    let stream = GatewayTransactionStream::new(
-        1919391,
-        100,
-        "https://mainnet.radixdlt.com".to_string(),
-    );
+    let stream = GatewayTransactionStream::new()
+        .gateway_url("https://mainnet.radixdlt.com".to_string())
+        .from_state_version(1919391)
+        .buffer_capacity(1000)
+        .limit_per_page(100);
+
+    let state = State {
+        number: 0,
+        pool: Arc::new(pool),
+        network: NetworkDefinition::mainnet(),
+    };
 
     // Start with parameters.
-    TransactionStreamProcessor::run_with(
-        stream,
-        handler_registry,
-        transaction_handler,
-        State {
-            number: 0,
-            pool: Arc::new(pool),
-            network: NetworkDefinition::mainnet(),
-        },
+    TransactionStreamProcessor::new(stream, handler_registry, state)
+        .transaction_handler(transaction_handler)
+        .run()
+        .await
+        .unwrap();
+}
+
+async fn run_from_database(
+    handler_registry: HandlerRegistry,
+    pool: Pool<Sqlite>,
+    transaction_handler: impl TransactionHandler<State> + 'static,
+) {
+    // Create a new transaction stream, which the processor will use
+    // as a source of transactions.
+
+    let stream = DatabaseTransactionStream::new(
+        // This database is public, but I would recommend not using it for anything outside
+        // of testing.
+        "postgresql://radix:radix@db.radix.live/radix_ledger".to_string(),
     )
-    .await
-    .unwrap();
+    .from_state_version(1919391)
+    .buffer_capacity(1_000_000)
+    .limit_per_page(10_000);
+
+    let state = State {
+        number: 0,
+        pool: Arc::new(pool),
+        network: NetworkDefinition::mainnet(),
+    };
+
+    // Start with parameters.
+    TransactionStreamProcessor::new(stream, handler_registry, state)
+        .transaction_handler(transaction_handler)
+        .default_logger_with_report_interval(Duration::from_millis(500))
+        .run()
+        .await
+        .unwrap();
 }
