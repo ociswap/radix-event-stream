@@ -32,7 +32,7 @@ pub struct StreamMetrics {
     pub recent_transactions: VecDeque<RecentTransaction>,
 }
 
-struct RecentTransaction {
+pub struct RecentTransaction {
     time: Instant,
     duration: Duration,
     handling: bool,

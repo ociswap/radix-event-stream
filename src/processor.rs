@@ -319,7 +319,7 @@ impl<'a> EventProcessor<'a> {
         handler_registry: &mut HandlerRegistry,
         transaction_context: &mut TRANSACTION_CONTEXT,
     ) -> Result<(), EventHandlerError> {
-        for event in self.transaction.events.iter() {
+        for (event_index, event) in self.transaction.events.iter().enumerate() {
             let handler_exists = handler_registry
                 .handler_exists(event.emitter.address(), &event.name);
             if !handler_exists {
@@ -354,6 +354,7 @@ impl<'a> EventProcessor<'a> {
                         event,
                         handler_registry,
                         transaction_context,
+                        event_index: event_index as u16,
                     },
                     &event.binary_sbor_data,
                 )
