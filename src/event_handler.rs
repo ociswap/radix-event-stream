@@ -197,9 +197,16 @@ impl<STATE, TRANSACTION_CONTEXT> Clone
 /// a database transaction handle. This is optional and defaults to the unit type.
 #[allow(non_camel_case_types)]
 pub struct EventHandlerContext<'a, STATE, TRANSACTION_CONTEXT = ()> {
+    /// The global state.
     pub state: &'a mut STATE,
+    /// Raw transaction data coming from ledger.
     pub transaction: &'a Transaction,
+    /// Raw event data coming from ledger.
     pub event: &'a Event,
+    /// Zero-based index of the event in the transaction.
+    pub event_index: u16,
+    /// Context of the current transaction, like a database transaction handle.
     pub transaction_context: &'a mut TRANSACTION_CONTEXT,
+    /// Handler registry of event handlers.
     pub handler_registry: &'a mut HandlerRegistry,
 }
