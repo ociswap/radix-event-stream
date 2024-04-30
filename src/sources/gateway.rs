@@ -53,7 +53,7 @@ impl From<CommittedTransactionInfo> for Transaction {
                 .intent_hash
                 .expect("Transaction should have tx id"),
             state_version: transaction.state_version,
-            confirmed_at: transaction.confirmed_at,
+            confirmed_at: transaction.round_timestamp,
             events: transaction
                 .receipt
                 .expect("Transaction should have receipt")
@@ -177,8 +177,17 @@ impl GatewayFetcher {
             if response.items.is_empty() {
                 sleep(self.caught_up_timeout).await;
             }
-            let transactions: Vec<Transaction> =
-                response.items.into_iter().map(|item| item.into()).collect();
+            let transactions: Vec<Transaction> = response
+                .items
+                .into_iter()
+                .filter_map(|item|
+                    // Only include successful transactions, don't process failed transactions
+                    match item.transaction_status {
+                        radix_client::gateway::models::TransactionStatus::CommittedSuccess => Some(item.into()),
+                        _ => None,
+                    }
+                )
+                .collect();
             for transaction in transactions {
                 // Stop fetching if the receiving end is closed
                 if self.tx.send(transaction).await.is_err() {

@@ -198,10 +198,9 @@ impl Logger for DefaultLogger {
             let message = format!(
                 "HANDLING TRANSACTION - {:#?} - {}",
                 transaction.state_version,
-                transaction.confirmed_at
-                    .expect("When handling a transaction it should always have a timestamp")
-                    .format("%a %d-%m-%Y %H:%M")
-            ).bright_green();
+                transaction.confirmed_at.format("%a %d-%m-%Y %H:%M")
+            )
+            .bright_green();
             let transaction_id =
                 format!("{}", transaction.intent_hash).bright_green();
             info!("{}", message);
@@ -216,7 +215,7 @@ impl Logger for DefaultLogger {
     ) {
         self.metrics.transactions_seen += 1;
         self.metrics.last_seen_state_version = Some(transaction.state_version);
-        self.metrics.last_seen_timestamp = transaction.confirmed_at;
+        self.metrics.last_seen_timestamp = Some(transaction.confirmed_at);
         let time_spent = self.transaction_stopwatch.elapsed();
         self.metrics
             .recent_transactions

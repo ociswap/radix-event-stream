@@ -130,7 +130,7 @@ impl DatabaseFetcher {
             r#"
                 select
                     state_version,
-                    round_timestamp,
+                    normalized_round_timestamp,
                     receipt_event_emitters,
                     receipt_event_sbors,
                     receipt_event_names,
@@ -170,7 +170,7 @@ impl DatabaseFetcher {
                 Transaction {
                     state_version: db_transaction.state_version as u64,
                     intent_hash: db_transaction.intent_hash.unwrap(),
-                    confirmed_at: Some(db_transaction.round_timestamp),
+                    confirmed_at: db_transaction.normalized_round_timestamp,
                     events,
                 }
             })
@@ -238,7 +238,7 @@ impl TransactionStream for DatabaseTransactionStream {
 #[derive(sqlx::FromRow, Debug)] // Ensure this derive to work with sqlx queries
 struct TransactionRecord {
     state_version: i64,
-    round_timestamp: chrono::DateTime<Utc>,
+    normalized_round_timestamp: chrono::DateTime<Utc>,
     receipt_event_emitters: Vec<serde_json::Value>,
     receipt_event_sbors: Vec<Vec<u8>>,
     receipt_event_names: Vec<String>,

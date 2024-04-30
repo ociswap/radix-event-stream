@@ -53,6 +53,6 @@ impl EventEmitter {
 pub struct Transaction {
     pub intent_hash: String,
     pub state_version: u64,
-    pub confirmed_at: Option<chrono::DateTime<Utc>>,
+    pub confirmed_at: chrono::DateTime<Utc>,
     pub events: Vec<Event>,
 }

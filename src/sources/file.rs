@@ -21,9 +21,9 @@ impl From<FileTransaction> for Transaction {
         Self {
             intent_hash: transaction.intent_hash,
             state_version: transaction.state_version,
-            confirmed_at: Some(chrono::DateTime::from_timestamp_nanos(
+            confirmed_at: chrono::DateTime::from_timestamp_nanos(
                 transaction.unix_timestamp_nanos,
-            )),
+            ),
             events: transaction
                 .events
                 .into_iter()
