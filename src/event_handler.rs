@@ -210,3 +210,75 @@ pub struct EventHandlerContext<'a, STATE, TRANSACTION_CONTEXT = ()> {
     /// Handler registry of event handlers.
     pub handler_registry: &'a mut HandlerRegistry,
 }
+
+#[cfg(test)]
+mod tests {
+
+    use radix_engine_common::ScryptoSbor;
+
+    use crate::macros::event_handler;
+
+    use super::*;
+    use crate as radix_event_stream;
+
+    struct TestState;
+    struct TestState2;
+
+    #[derive(ScryptoSbor)]
+    struct TestEventType;
+
+    #[derive(ScryptoSbor)]
+    struct TestEventType2;
+
+    #[event_handler]
+    async fn test_handler(
+        context: EventHandlerContext<TestState>,
+        event: TestEventType,
+    ) -> Result<(), EventHandlerError> {
+        Ok(())
+    }
+
+    #[event_handler]
+    async fn test_handler2(
+        context: EventHandlerContext<TestState2>,
+        event: TestEventType2,
+    ) -> Result<(), EventHandlerError> {
+        Ok(())
+    }
+
+    #[test]
+    fn add_and_retrieve_handler() {
+        let mut registry = HandlerRegistry::new();
+        registry.add_handler("1", "1", test_handler);
+
+        let handler = registry.get_handler::<TestState, ()>("1", "1");
+        assert!(handler.is_some());
+    }
+
+    #[test]
+    #[should_panic]
+    fn add_handler_of_different_type() {
+        let mut registry = HandlerRegistry::new();
+        registry.add_handler("1", "1", test_handler);
+
+        registry.add_handler("1", "2", test_handler2);
+    }
+
+    #[test]
+    #[should_panic]
+    fn get_handler_as_different_type() {
+        let mut registry = HandlerRegistry::new();
+        registry.add_handler("1", "1", test_handler);
+
+        registry.get_handler::<TestState2, ()>("1", "1");
+    }
+
+    #[test]
+    fn test_handler_exists() {
+        let mut registry = HandlerRegistry::new();
+        registry.add_handler("1", "1", test_handler);
+
+        assert!(registry.handler_exists("1", "1"));
+        assert!(!registry.handler_exists("1", "2"));
+    }
+}
