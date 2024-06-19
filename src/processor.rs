@@ -13,11 +13,12 @@ use crate::{
     event_handler::{EventHandlerContext, HandlerRegistry, State},
     logger::{DefaultLogger, Logger},
     models::Transaction,
+    native_events::NativeEventType,
     stream::TransactionStream,
     transaction_handler::{TransactionHandler, TransactionHandlerContext},
 };
 use async_trait::async_trait;
-use std::{sync::Arc, time::Duration};
+use std::{str::FromStr, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 
 /// The main struct that processes transactions from a [`TransactionStream`].
@@ -160,8 +161,7 @@ where
         // Find out if there are any events inside this transaction
         // that have a handler registered.
         let handler_exists = transaction.events.iter().any(|event| {
-            self.handler_registry
-                .handler_exists(event.emitter.address(), &event.name)
+            self.handler_registry.handler_exists_for_event(&event)
         });
 
         if let Some(logger) = &self.logger {
@@ -320,8 +320,8 @@ impl<'a> EventProcessor<'a> {
         transaction_context: &mut TRANSACTION_CONTEXT,
     ) -> Result<(), EventHandlerError> {
         for (event_index, event) in self.transaction.events.iter().enumerate() {
-            let handler_exists = handler_registry
-                .handler_exists(event.emitter.address(), &event.name);
+            let handler_exists =
+                handler_registry.handler_exists_for_event(&event);
             if !handler_exists {
                 continue;
             }
@@ -343,6 +343,11 @@ impl<'a> EventProcessor<'a> {
                         event.emitter.address(),
                         &event.name,
                     )
+                    .or_else(|| {
+                        handler_registry.get_native_handler(
+                            NativeEventType::from_str(&event.name).unwrap(),
+                        )
+                    })
                     .unwrap()
             };
             let event_handler = event_handler.clone();

@@ -4,6 +4,7 @@ pub mod event_handler;
 pub mod logger;
 pub mod macros;
 pub mod models;
+pub mod native_events;
 pub mod processor;
 pub mod sources;
 pub mod stream;
