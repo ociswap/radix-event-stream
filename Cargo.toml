@@ -17,6 +17,7 @@ radix-engine-common = { git = "https://github.com/radixdlt/radixdlt-scrypto", re
 sbor = { git = "https://github.com/radixdlt/radixdlt-scrypto", rev = "038ddee8b0f57aa90e36375c69946c4eb634efeb", features = [
     "serde",
 ] }
+radix-engine-interface = { git = "https://github.com/radixdlt/radixdlt-scrypto", rev = "038ddee8b0f57aa90e36375c69946c4eb634efeb" }
 radix-client = { git = "https://github.com/ociswap/radix-client", features = [
     "gateway",
 ], optional = true }
