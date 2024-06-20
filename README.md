@@ -283,6 +283,20 @@ TransactionStreamProcessor::new(stream, handler_registry, state)
     .unwrap();
 ```
 
+
+## Native events
+
+Radix also has a bunch of events that are built into the platform. For example, events are emitted on:
+- Entity metadata changes
+- Resource deposits/withdrawals
+- Resource minting/burning
+- Native pool deposits/withdrawals
+- And more...
+
+These events are also supported by this framework. In the context of this framework, they are referred to as "native" events.
+
+Each native event type can only have *one* handler, unlike custom events. The reason behind this is that it is less straightforward to identify these events, as their emitters can vary a lot, while custom components can only be emitted by the components we create. We hope Radix may add a more direct way to identify events, so that we'll be able to eliminate this inequality.
+
 # More info
 
 For more examples, please see the `/examples` directory, or ask us on telegram/discord if you have any specific questions! We'd be happy to help.
