@@ -299,7 +299,30 @@ Each native event type can only have *one* handler, unlike custom events. The re
 
 Add logic to the handler to handle different emitter types, or addresses. This information is provided to the handler.
 
+Handling these native events follows almost the same process as custom events, with a few differences:
+- You don't have to copy over any event definitions, they are re-exported in this crate.
+- You can specify the handler for an event type using the `HandlerRegistry::set_native_handler`` method.
 
+```rust
+handler_registry.set_native_handler(
+    NativeEventType::Metadata(MetadataEventType::SetMetadataEvent),
+    handler,
+);
+```
+
+A nested enum is used here to indicate the event type we wish to set the handler for. There are a few logical modules in which events are divided:
+- Metadata
+- ResourceManager
+- Vaults
+- Pools
+- etc.
+
+Each module has a ...EventType enum. These can all be imported from the `native_events` module, where the events are also re-exported.
+To view the events, you can find them in [radixdlt-scrypto](https://github.com/radixdlt/radixdlt-scrypto);
+- [metadata and role assignment](https://github.com/radixdlt/radixdlt-scrypto/tree/main/radix-engine/src/object_modules)
+- [other](https://github.com/radixdlt/radixdlt-scrypto/tree/main/radix-engine/src/blueprints)
+
+Find an example in `examples/native_events.rs`
 
 # More info
 
