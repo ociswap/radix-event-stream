@@ -7,7 +7,7 @@ use radix_common::{
     network::NetworkDefinition,
 };
 use radix_engine_toolkit::functions::scrypto_sbor::{
-    encode_string_representation, ScryptoSborError, StringRepresentation,
+    encode_string_representation, StringRepresentation,
 };
 
 /// Decode a [`serde_json::Value`] containing programmatic json
@@ -17,8 +17,8 @@ pub fn decode_programmatic_json<T: ScryptoDecode>(
     data: &serde_json::Value,
 ) -> anyhow::Result<T> {
     let bytes = programmatic_json_to_bytes(data)?;
-    Ok(scrypto_decode::<T>(&bytes)
-        .map_err(|err| anyhow::anyhow!("Could not decode: {:#?}", err))?)
+    scrypto_decode::<T>(&bytes)
+        .map_err(|err| anyhow::anyhow!("Could not decode: {:#?}", err))
 }
 
 /// Some representations of transactions only come with programmatic

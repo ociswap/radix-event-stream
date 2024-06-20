@@ -280,7 +280,7 @@ impl From<EventEmitterIdentifier> for EventEmitter {
                 entity_address: entity.entity_address,
                 entity_type: entity.entity_type,
                 is_global: entity.is_global,
-                object_module_id: object_module_id,
+                object_module_id,
             },
             EventEmitterIdentifier::Function {
                 package_address,

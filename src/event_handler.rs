@@ -60,7 +60,6 @@ use radix_client::gateway::models::{EntityType, ModuleId};
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
-    str::FromStr,
 };
 
 use crate::{
@@ -223,6 +222,7 @@ impl HandlerRegistry {
         self.native_handlers.insert(event_type, Box::new(boxed));
     }
 
+    #[allow(clippy::borrowed_box)]
     pub fn get_native_handler<STATE: State, TRANSACTION_CONTEXT: 'static>(
         &self,
         event_type: NativeEventType,

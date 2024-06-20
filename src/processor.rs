@@ -19,7 +19,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use core::panic;
-use std::{str::FromStr, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 
 /// The main struct that processes transactions from a [`TransactionStream`].
@@ -161,9 +161,10 @@ where
     ) -> Result<bool, TransactionStreamProcessorError> {
         // Find out if there are any events inside this transaction
         // that have a handler registered.
-        let handler_exists = transaction.events.iter().any(|event| {
-            self.handler_registry.handler_exists_for_event(&event)
-        });
+        let handler_exists = transaction
+            .events
+            .iter()
+            .any(|event| self.handler_registry.handler_exists_for_event(event));
 
         if let Some(logger) = &self.logger {
             logger
@@ -322,7 +323,7 @@ impl<'a> EventProcessor<'a> {
     ) -> Result<(), EventHandlerError> {
         for (event_index, event) in self.transaction.events.iter().enumerate() {
             let handler_exists =
-                handler_registry.handler_exists_for_event(&event);
+                handler_registry.handler_exists_for_event(event);
             if !handler_exists {
                 continue;
             }
