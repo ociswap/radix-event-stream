@@ -1,7 +1,7 @@
 #[derive(PartialEq, Eq, Debug, Hash)]
 pub enum ConsensusManagerEventType {
-    RoundChangeEvent,
     EpochChangeEvent,
+    RoundChangeEvent,
 }
 
 pub use radix_engine::blueprints::consensus_manager::EpochChangeEvent;
