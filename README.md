@@ -297,6 +297,10 @@ These events are also supported by this framework. In the context of this framew
 
 Each native event type can only have *one* handler, unlike custom events. The reason behind this is that it is less straightforward to identify these events, as their emitters can vary a lot, while custom components can only be emitted by the components we create. We hope Radix may add a more direct way to identify events, so that we'll be able to eliminate this inequality.
 
+Add logic to the handler to handle different emitter types, or addresses. This information is provided to the handler.
+
+
+
 # More info
 
 For more examples, please see the `/examples` directory, or ask us on telegram/discord if you have any specific questions! We'd be happy to help.
