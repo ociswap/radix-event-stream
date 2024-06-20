@@ -310,7 +310,7 @@ handler_registry.set_native_handler(
 );
 ```
 
-A nested enum is used here to indicate the event type we wish to set the handler for. There are a few logical modules in which events are divided:
+A nested enum is used here to indicate the event type we wish to set the handler for. There are a few logical modules in which events are grouped:
 - Metadata
 - ResourceManager
 - Vaults
@@ -321,6 +321,8 @@ Each module has a ...EventType enum. These can all be imported from the `native_
 To view the events, you can find them in [radixdlt-scrypto](https://github.com/radixdlt/radixdlt-scrypto);
 - [metadata and role assignment](https://github.com/radixdlt/radixdlt-scrypto/tree/main/radix-engine/src/object_modules)
 - [other](https://github.com/radixdlt/radixdlt-scrypto/tree/main/radix-engine/src/blueprints)
+
+However it might be easier to clone this repo or add it as a dependency in your project and then go to definition using your IDE.
 
 Find an example in `examples/native_events.rs`
 
