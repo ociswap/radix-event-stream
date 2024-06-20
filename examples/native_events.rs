@@ -1,13 +1,13 @@
 use log::info;
-use radix_engine_common::math::Decimal;
-use radix_engine_common::types::{ComponentAddress, ResourceAddress};
-use radix_engine_common::ScryptoSbor;
+use radix_common::math::Decimal;
+use radix_common::types::{ComponentAddress, ResourceAddress};
+use radix_common::ScryptoSbor;
+use radix_engine::object_modules::metadata::SetMetadataEvent;
+use radix_engine::object_modules::role_assignment::SetOwnerRoleEvent;
 use radix_event_stream::event_handler::HandlerRegistry;
 use radix_event_stream::macros::event_handler;
-use radix_event_stream::native_events::{
-    BurnFungibleResourceEvent, MetadataEventType, MintFungibleResourceEvent,
-    NativeEventType, ResourceManagerEventType, SetMetadataEvent,
-};
+use radix_event_stream::native_events::metadata::MetadataEventType;
+use radix_event_stream::native_events::NativeEventType;
 use radix_event_stream::processor::TransactionStreamProcessor;
 use radix_event_stream::sources::database::DatabaseTransactionStream;
 use std::env;
@@ -27,7 +27,7 @@ pub struct InstantiateEvent {
 }
 
 #[event_handler]
-pub async fn handle_instantiate_event(
+pub async fn handler(
     context: EventHandlerContext<State>,
     event: SetMetadataEvent,
 ) -> Result<(), EventHandlerError> {
@@ -50,7 +50,7 @@ async fn main() {
     // Add the instantiate event handler to the registry
     handler_registry.set_native_handler(
         NativeEventType::Metadata(MetadataEventType::SetMetadataEvent),
-        handle_instantiate_event,
+        handler,
     );
 
     // Create a new transaction stream, which the processor will use
@@ -61,7 +61,7 @@ async fn main() {
         "postgresql://radix:radix@db.radix.live/radix_ledger".to_string(),
     )
     .from_state_version(1919391)
-    .buffer_capacity(1_000_000)
+    .buffer_capacity(100_000)
     .limit_per_page(10_000);
 
     // Start with parameters.

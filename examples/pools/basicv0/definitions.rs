@@ -1,4 +1,4 @@
-use radix_engine_common::network::NetworkDefinition;
+use radix_common::network::NetworkDefinition;
 use std::sync::Arc;
 
 // Define a global state

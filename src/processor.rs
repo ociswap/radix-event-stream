@@ -12,12 +12,13 @@ use crate::{
     },
     event_handler::{EventHandlerContext, HandlerRegistry, State},
     logger::{DefaultLogger, Logger},
-    models::Transaction,
+    models::{EventEmitter, Transaction},
     native_events::NativeEventType,
     stream::TransactionStream,
     transaction_handler::{TransactionHandler, TransactionHandlerContext},
 };
 use async_trait::async_trait;
+use core::panic;
 use std::{str::FromStr, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 
@@ -344,8 +345,16 @@ impl<'a> EventProcessor<'a> {
                         &event.name,
                     )
                     .or_else(|| {
+                        let entity_type = match &event.emitter {
+                            EventEmitter::Method { entity_type, .. } => {
+                                entity_type
+                            }
+                            EventEmitter::Function { .. } => {
+                                panic!("Got a function call while expecting a native event.")
+                            }
+                        };
                         handler_registry.get_native_handler(
-                            NativeEventType::from_str(&event.name).unwrap(),
+                            NativeEventType::resolve(&event.name, entity_type.clone()).unwrap(),
                         )
                     })
                     .unwrap()

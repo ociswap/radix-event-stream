@@ -14,7 +14,7 @@ signature.
 An event handler function must:
 - Be an async function
 - Take a `context` parameter of type [`EventHandlerContext<YOUR_STATE>`]
-- Take an `event` parameter of the type of your Radix Engine event struct which derives [`radix_engine_common::ScryptoSbor`]
+- Take an `event` parameter of the type of your Radix Engine event struct which derives [`radix_common::ScryptoSbor`]
 - Return a `Result<(), EventHandlerError>`
 
 You can use the following template to create an event handler:
@@ -96,11 +96,16 @@ impl HandlerRegistry {
     }
 
     pub fn handler_exists_for_event(&self, event: &Event) -> bool {
-        let native_event_case = || match NativeEventType::from_str(&event.name)
-        {
-            Ok(event_type) => self.native_handlers.contains_key(&event_type),
-            Err(_) => false,
-        };
+        let native_event_case =
+            |entity_type: EntityType| match NativeEventType::resolve(
+                &event.name,
+                entity_type,
+            ) {
+                Ok(event_type) => {
+                    self.native_handlers.contains_key(&event_type)
+                }
+                Err(_) => false,
+            };
         let userspace_event_case = |entity_address: &str| {
             self.handlers.contains_key(&(
                 entity_address.to_string(),
@@ -115,7 +120,7 @@ impl HandlerRegistry {
                 ..
             } => {
                 if !matches!(object_module_id, ModuleId::Main) {
-                    native_event_case()
+                    native_event_case(entity_type.clone())
                 } else {
                     match entity_type {
                         EntityType::GlobalGenericComponent => {
@@ -124,7 +129,7 @@ impl HandlerRegistry {
                         EntityType::InternalGenericComponent => {
                             userspace_event_case(entity_address)
                         }
-                        _ => native_event_case(),
+                        _ => native_event_case(entity_type.clone()),
                     }
                 }
             }

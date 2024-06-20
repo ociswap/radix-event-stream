@@ -11,13 +11,14 @@ repository = "https://github.com/ociswap/radix-event-stream"
 # https://discord.com/channels/417762285172555786/765994894749597697/1225814514717560872
 # Should be removed once they release a new version.
 radix-engine-toolkit = { git = 'https://github.com/Krulknul/radix-engine-toolkit.git', branch = "temporary-fix-1.0.5" }
-radix-engine-common = { git = "https://github.com/radixdlt/radixdlt-scrypto", rev = "038ddee8b0f57aa90e36375c69946c4eb634efeb", features = [
+radix-common = { git = "https://github.com/radixdlt/radixdlt-scrypto", tag = "v1.2.0", features = [
     "serde",
 ] }
-sbor = { git = "https://github.com/radixdlt/radixdlt-scrypto", rev = "038ddee8b0f57aa90e36375c69946c4eb634efeb", features = [
+sbor = { git = "https://github.com/radixdlt/radixdlt-scrypto", tag = "v1.2.0", features = [
     "serde",
 ] }
-radix-engine-interface = { git = "https://github.com/radixdlt/radixdlt-scrypto", rev = "038ddee8b0f57aa90e36375c69946c4eb634efeb" }
+radix-engine-interface = { git = "https://github.com/radixdlt/radixdlt-scrypto", tag = "v1.2.0" }
+radix-engine = { git = "https://github.com/radixdlt/radixdlt-scrypto", tag = "v1.2.0" }
 radix-client = { git = "https://github.com/ociswap/radix-client", features = [
     "gateway",
 ], optional = true }

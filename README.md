@@ -24,6 +24,9 @@ Leverages the raw performance of Rust 🦀
 
 Supports asynchronous operations inside handlers for efficient queries.
 
+### Let us know!
+If you are using radix-event-stream in production or are interested in using it, please let us know! t.me/ociswap
+
 ## Background
 
 [Radix](https://www.radixdlt.com) is a platform for decentralized applications, specifically built for DeFi. Each smart contract, called a component on Radix, can emit events when transactions happen, including custom events defined by the author of the smart contract. An event may look somewhat like this:
@@ -62,7 +65,7 @@ struct InstantiateEvent {
 }
 ```
 
-Above, we see an event definition used in one of Ociswap's Basic pools. It derives at the very least `radix_engine_common::ScryptoSbor`, which is needed to decode it from binary Scrypto SBOR. Copy this over to your project.
+Above, we see an event definition used in one of Ociswap's Basic pools. It derives at the very least `radix_common::ScryptoSbor`, which is needed to decode it from binary Scrypto SBOR. Copy this over to your project.
 
 ### Step 2: Define a global state.
 

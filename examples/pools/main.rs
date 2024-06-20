@@ -2,7 +2,7 @@ pub mod basicv0;
 use crate::basicv0::definitions::{State, TransactionContext};
 use crate::basicv0::events;
 use log::error;
-use radix_engine_common::network::NetworkDefinition;
+use radix_common::network::NetworkDefinition;
 use radix_event_stream::macros::transaction_handler;
 use radix_event_stream::sources::database::DatabaseTransactionStream;
 use radix_event_stream::transaction_handler::TransactionHandler;
