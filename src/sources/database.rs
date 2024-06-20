@@ -125,27 +125,31 @@ impl DatabaseFetcher {
 
     /// Fetches the next batch of transactions from the database.
     async fn next_batch(&mut self) -> Result<Vec<Transaction>, anyhow::Error> {
-        let transactions: Vec<TransactionRecord> = timeout(self.query_timeout, sqlx::query_as!(
-            TransactionRecord,
+        let query = sqlx::query_as::<_, TransactionRecord>(
             r#"
-                select
+                SELECT
                     state_version,
                     round_timestamp,
                     receipt_event_emitters,
                     receipt_event_sbors,
                     receipt_event_names,
                     intent_hash
-                from
+                FROM
                     ledger_transactions
-                where discriminator = 'user' and receipt_status != 'failed' and state_version >= $2
-                order by state_version asc
-                limit
-                $1
-            "#,
-            self.limit_per_page as i32,
-            self.state_version as i64
+                WHERE
+                    discriminator = 'user' AND receipt_status != 'failed' AND state_version >= $2
+                ORDER BY
+                    state_version ASC
+                LIMIT
+                    $1
+            "#
         )
-        .fetch_all(&self.connection)).await??;
+        .bind(self.limit_per_page as i32)
+        .bind(self.state_version as i64);
+
+        let transactions: Vec<TransactionRecord> =
+            timeout(self.query_timeout, query.fetch_all(&self.connection))
+                .await??;
 
         // Convert the database records to the Transaction model
         let transactions: Vec<_> = transactions
