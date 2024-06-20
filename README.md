@@ -301,7 +301,7 @@ Add logic to the handler to handle different emitter types, or addresses. This i
 
 Handling these native events follows almost the same process as custom events, with a few differences:
 - You don't have to copy over any event definitions, they are re-exported in this crate.
-- You can specify the handler for an event type using the `HandlerRegistry::set_native_handler`` method.
+- You can specify the handler for an event type using the `HandlerRegistry::set_native_handler` method.
 
 ```rust
 handler_registry.set_native_handler(
