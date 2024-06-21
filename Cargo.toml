@@ -1,6 +1,6 @@
 [package]
 name = "radix-event-stream"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 license-file = "LICENSE"
 repository = "https://github.com/ociswap/radix-event-stream"
@@ -11,14 +11,10 @@ repository = "https://github.com/ociswap/radix-event-stream"
 # https://discord.com/channels/417762285172555786/765994894749597697/1225814514717560872
 # Should be removed once they release a new version.
 radix-engine-toolkit = { git = 'https://github.com/Krulknul/radix-engine-toolkit.git', branch = "temporary-fix-1.0.5" }
-radix-common = { git = "https://github.com/radixdlt/radixdlt-scrypto", tag = "v1.2.0", features = [
-    "serde",
-] }
-sbor = { git = "https://github.com/radixdlt/radixdlt-scrypto", tag = "v1.2.0", features = [
-    "serde",
-] }
-radix-engine-interface = { git = "https://github.com/radixdlt/radixdlt-scrypto", tag = "v1.2.0" }
-radix-engine = { git = "https://github.com/radixdlt/radixdlt-scrypto", tag = "v1.2.0" }
+radix-common = { version = "1.2.0", features = ["serde"] }
+sbor = { version = "1.2.0", features = ["serde"] }
+radix-engine-interface = { version = "1.2.0" }
+radix-engine = { version = "1.2.0" }
 radix-client = { git = "https://github.com/ociswap/radix-client", features = [
     "gateway",
 ], optional = true }
