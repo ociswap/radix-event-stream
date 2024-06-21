@@ -1,7 +1,4 @@
 use log::info;
-use radix_common::math::Decimal;
-use radix_common::types::{ComponentAddress, ResourceAddress};
-use radix_common::ScryptoSbor;
 use radix_engine::object_modules::metadata::SetMetadataEvent;
 use radix_event_stream::event_handler::HandlerRegistry;
 use radix_event_stream::macros::event_handler;
@@ -14,15 +11,6 @@ use std::env;
 #[derive(Debug, Clone)]
 struct State {
     number: u64,
-}
-
-#[derive(ScryptoSbor, Debug)]
-pub struct InstantiateEvent {
-    x_address: ResourceAddress,
-    y_address: ResourceAddress,
-    input_fee_rate: Decimal,
-    liquidity_pool_address: ComponentAddress,
-    pool_address: ComponentAddress,
 }
 
 #[event_handler]
@@ -46,8 +34,9 @@ async fn main() {
     // Create a new handler registry
     let mut handler_registry = HandlerRegistry::new();
 
-    // Add the instantiate event handler to the registry
+    // Add the event handler to the registry
     handler_registry.set_native_handler(
+        // select the event type by using the enum
         NativeEventType::Metadata(MetadataEventType::SetMetadataEvent),
         handler,
     );
