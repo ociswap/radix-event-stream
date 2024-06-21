@@ -164,7 +164,7 @@ where
         let handler_exists = transaction
             .events
             .iter()
-            .any(|event| self.handler_registry.handler_exists_for_event(event));
+            .any(|event| self.handler_registry.handler_exists(event));
 
         if let Some(logger) = &self.logger {
             logger
@@ -322,8 +322,7 @@ impl<'a> EventProcessor<'a> {
         transaction_context: &mut TRANSACTION_CONTEXT,
     ) -> Result<(), EventHandlerError> {
         for (event_index, event) in self.transaction.events.iter().enumerate() {
-            let handler_exists =
-                handler_registry.handler_exists_for_event(event);
+            let handler_exists = handler_registry.handler_exists(event);
             if !handler_exists {
                 continue;
             }

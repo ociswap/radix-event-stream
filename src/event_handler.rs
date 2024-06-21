@@ -94,7 +94,7 @@ impl HandlerRegistry {
         Self::default()
     }
 
-    pub fn handler_exists_for_event(&self, event: &Event) -> bool {
+    pub fn handler_exists(&self, event: &Event) -> bool {
         let native_event_case =
             |entity_type: EntityType| match NativeEventType::resolve(
                 &event.name,
