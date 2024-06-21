@@ -9,6 +9,7 @@
 //! into these generic models.
 
 use chrono::Utc;
+use radix_client::gateway::models::{EntityType, ModuleId};
 use serde::{Deserialize, Serialize};
 
 /// Generic struct for ledger events from a
@@ -26,6 +27,9 @@ pub struct Event {
 pub enum EventEmitter {
     Method {
         entity_address: String,
+        entity_type: EntityType,
+        is_global: bool,
+        object_module_id: ModuleId,
     },
     Function {
         package_address: String,
@@ -37,7 +41,7 @@ impl EventEmitter {
     /// Returns the address of the emitter, regardless of whether it is a method or function.
     pub fn address(&self) -> &str {
         match self {
-            EventEmitter::Method { entity_address } => entity_address,
+            EventEmitter::Method { entity_address, .. } => entity_address,
             EventEmitter::Function {
                 package_address, ..
             } => package_address,

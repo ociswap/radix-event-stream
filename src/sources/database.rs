@@ -6,6 +6,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use chrono::Utc;
+use radix_client::gateway::models::{EntityType, ModuleId};
 use serde::Deserialize;
 use sqlx::{postgres::PgConnectOptions, ConnectOptions};
 use std::{str::FromStr, time::Duration};
@@ -254,6 +255,7 @@ struct TransactionRecord {
 pub enum EventEmitterIdentifier {
     Method {
         entity: EntityReference,
+        object_module_id: ModuleId,
     },
     Function {
         package_address: String,
@@ -263,14 +265,22 @@ pub enum EventEmitterIdentifier {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct EntityReference {
+    pub is_global: bool,
     pub entity_address: String,
+    pub entity_type: EntityType,
 }
 
 impl From<EventEmitterIdentifier> for EventEmitter {
     fn from(identifier: EventEmitterIdentifier) -> Self {
         match identifier {
-            EventEmitterIdentifier::Method { entity } => Self::Method {
+            EventEmitterIdentifier::Method {
+                entity,
+                object_module_id,
+            } => Self::Method {
                 entity_address: entity.entity_address,
+                entity_type: entity.entity_type,
+                is_global: entity.is_global,
+                object_module_id,
             },
             EventEmitterIdentifier::Function {
                 package_address,

@@ -14,7 +14,7 @@ signature.
 An event handler function must:
 - Be an async function
 - Take a `context` parameter of type [`EventHandlerContext<YOUR_STATE>`]
-- Take an `event` parameter of the type of your Radix Engine event struct which derives [`radix_engine_common::ScryptoSbor`]
+- Take an `event` parameter of the type of your Radix Engine event struct which derives [`radix_common::ScryptoSbor`]
 - Return a `Result<(), EventHandlerError>`
 
 You can use the following template to create an event handler:
@@ -56,6 +56,7 @@ async fn event_handler_name(
 
 use async_trait::async_trait;
 use dyn_clone::DynClone;
+use radix_client::gateway::models::{EntityType, ModuleId};
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
@@ -63,7 +64,8 @@ use std::{
 
 use crate::{
     error::EventHandlerError,
-    models::{Event, Transaction},
+    models::{Event, EventEmitter, Transaction},
+    native_events::NativeEventType,
 };
 
 /// A shorthand trait for a state type that can be used in event handlers.
@@ -82,6 +84,7 @@ impl<T> State for T where T: Send + Sync + 'static {}
 #[derive(Default)]
 pub struct HandlerRegistry {
     handlers: HashMap<(String, String), Box<dyn Any + Send + Sync>>,
+    native_handlers: HashMap<NativeEventType, Box<dyn Any + Send + Sync>>,
     type_id: Option<TypeId>,
 }
 
@@ -91,9 +94,48 @@ impl HandlerRegistry {
         Self::default()
     }
 
-    pub fn handler_exists(&self, emitter: &str, name: &str) -> bool {
-        self.handlers
-            .contains_key(&(emitter.to_string(), name.to_string()))
+    pub fn handler_exists(&self, event: &Event) -> bool {
+        let native_event_case =
+            |entity_type: EntityType| match NativeEventType::resolve(
+                &event.name,
+                entity_type,
+            ) {
+                Ok(event_type) => {
+                    self.native_handlers.contains_key(&event_type)
+                }
+                Err(_) => false,
+            };
+        let userspace_event_case = |entity_address: &str| {
+            self.handlers.contains_key(&(
+                entity_address.to_string(),
+                event.name.to_string(),
+            ))
+        };
+        match &event.emitter {
+            EventEmitter::Method {
+                entity_address,
+                entity_type,
+                object_module_id,
+                ..
+            } => {
+                if !matches!(object_module_id, ModuleId::Main) {
+                    native_event_case(entity_type.clone())
+                } else {
+                    match entity_type {
+                        EntityType::GlobalGenericComponent => {
+                            userspace_event_case(entity_address)
+                        }
+                        EntityType::InternalGenericComponent => {
+                            userspace_event_case(entity_address)
+                        }
+                        _ => native_event_case(entity_type.clone()),
+                    }
+                }
+            }
+            EventEmitter::Function {
+                package_address, ..
+            } => userspace_event_case(package_address),
+        }
     }
 
     /// Add an event handler to the registry.
@@ -141,20 +183,12 @@ impl HandlerRegistry {
     /// This function panics if the type parameters used to call it
     /// don't match the ones used to add the handler to the registry.
     #[allow(clippy::borrowed_box)]
-    pub fn get_handler<STATE: State, TRANSACTION_CONTEXT: 'static>(
+    pub fn handler<STATE: State, TRANSACTION_CONTEXT: 'static>(
         &self,
         emitter: &str,
         name: &str,
     ) -> Option<&Box<dyn EventHandler<STATE, TRANSACTION_CONTEXT>>> {
-        // Get the type id of the handler we're trying to get.
-        let type_id =
-            TypeId::of::<Box<dyn EventHandler<STATE, TRANSACTION_CONTEXT>>>();
-
-        // Check if the type ID matches the ones stored in the registry.
-        // If they don't match, we can't downcast the handler and there must be a bug somewhere.
-        if self.type_id != Some(type_id) {
-            panic!("Trying to get handler with different signature than the ones stored in the registry");
-        }
+        self.validate_type_id::<STATE, TRANSACTION_CONTEXT>();
 
         // Get the handler from the registry and downcast it to the correct type.
         let handler =
@@ -164,6 +198,54 @@ impl HandlerRegistry {
                 .downcast_ref::<Box<dyn EventHandler<STATE, TRANSACTION_CONTEXT>>>()
                 .expect("Failed to downcast handler")
         })
+    }
+
+    pub fn set_native_handler<STATE: State, TRANSACTION_CONTEXT: 'static>(
+        &mut self,
+        event_type: NativeEventType,
+        handler: impl EventHandler<STATE, TRANSACTION_CONTEXT> + 'static,
+    ) {
+        let type_id =
+            TypeId::of::<Box<dyn EventHandler<STATE, TRANSACTION_CONTEXT>>>();
+        match self.type_id {
+            Some(existing_type_id) => {
+                if existing_type_id != type_id {
+                    panic!("HandlerRegistry already contains a handler with a different signature");
+                }
+            }
+            None => {
+                self.type_id = Some(type_id);
+            }
+        }
+        let boxed: Box<dyn EventHandler<STATE, TRANSACTION_CONTEXT> + 'static> =
+            Box::new(handler);
+        self.native_handlers.insert(event_type, Box::new(boxed));
+    }
+
+    #[allow(clippy::borrowed_box)]
+    pub fn native_handler<STATE: State, TRANSACTION_CONTEXT: 'static>(
+        &self,
+        event_type: NativeEventType,
+    ) -> Option<&Box<dyn EventHandler<STATE, TRANSACTION_CONTEXT>>> {
+        self.validate_type_id::<STATE, TRANSACTION_CONTEXT>();
+        let handler = self.native_handlers.get(&event_type);
+        handler.map(|handler| {
+            handler
+                .downcast_ref::<Box<dyn EventHandler<STATE, TRANSACTION_CONTEXT>>>()
+                .expect("Failed to downcast handler")
+        })
+    }
+
+    fn validate_type_id<STATE: State, TRANSACTION_CONTEXT: 'static>(&self) {
+        // Get the type id of the handler we're trying to get.
+        let type_id =
+            TypeId::of::<Box<dyn EventHandler<STATE, TRANSACTION_CONTEXT>>>();
+
+        // Check if the type ID matches the ones stored in the registry.
+        // If they don't match, we can't downcast the handler and there must be a bug somewhere.
+        if self.type_id != Some(type_id) {
+            panic!("Trying to get handler with different signature than the ones stored in the registry");
+        }
     }
 }
 

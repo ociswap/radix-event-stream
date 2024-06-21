@@ -12,11 +12,13 @@ use crate::{
     },
     event_handler::{EventHandlerContext, HandlerRegistry, State},
     logger::{DefaultLogger, Logger},
-    models::Transaction,
+    models::{EventEmitter, Transaction},
+    native_events::NativeEventType,
     stream::TransactionStream,
     transaction_handler::{TransactionHandler, TransactionHandlerContext},
 };
 use async_trait::async_trait;
+use core::panic;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 
@@ -159,10 +161,10 @@ where
     ) -> Result<bool, TransactionStreamProcessorError> {
         // Find out if there are any events inside this transaction
         // that have a handler registered.
-        let handler_exists = transaction.events.iter().any(|event| {
-            self.handler_registry
-                .handler_exists(event.emitter.address(), &event.name)
-        });
+        let handler_exists = transaction
+            .events
+            .iter()
+            .any(|event| self.handler_registry.handler_exists(event));
 
         if let Some(logger) = &self.logger {
             logger
@@ -320,8 +322,7 @@ impl<'a> EventProcessor<'a> {
         transaction_context: &mut TRANSACTION_CONTEXT,
     ) -> Result<(), EventHandlerError> {
         for (event_index, event) in self.transaction.events.iter().enumerate() {
-            let handler_exists = handler_registry
-                .handler_exists(event.emitter.address(), &event.name);
+            let handler_exists = handler_registry.handler_exists(event);
             if !handler_exists {
                 continue;
             }
@@ -339,10 +340,23 @@ impl<'a> EventProcessor<'a> {
             }
             let event_handler = {
                 handler_registry
-                    .get_handler::<STATE, TRANSACTION_CONTEXT>(
+                    .handler::<STATE, TRANSACTION_CONTEXT>(
                         event.emitter.address(),
                         &event.name,
                     )
+                    .or_else(|| {
+                        let entity_type = match &event.emitter {
+                            EventEmitter::Method { entity_type, .. } => {
+                                entity_type
+                            }
+                            EventEmitter::Function { .. } => {
+                                panic!("Got a function call while expecting a native event.")
+                            }
+                        };
+                        handler_registry.native_handler(
+                            NativeEventType::resolve(&event.name, entity_type.clone()).unwrap(),
+                        )
+                    })
                     .unwrap()
             };
             let event_handler = event_handler.clone();

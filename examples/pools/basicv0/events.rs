@@ -1,5 +1,5 @@
 use super::definitions::*;
-use radix_engine_common::{
+use radix_common::{
     math::Decimal,
     types::{ComponentAddress, ResourceAddress},
     ScryptoSbor,

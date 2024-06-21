@@ -24,6 +24,9 @@ Leverages the raw performance of Rust 🦀
 
 Supports asynchronous operations inside handlers for efficient queries.
 
+### Let us know!
+If you are using radix-event-stream in production or are interested in using it, please let us know! t.me/ociswap
+
 ## Background
 
 [Radix](https://www.radixdlt.com) is a platform for decentralized applications, specifically built for DeFi. Each smart contract, called a component on Radix, can emit events when transactions happen, including custom events defined by the author of the smart contract. An event may look somewhat like this:
@@ -62,7 +65,7 @@ struct InstantiateEvent {
 }
 ```
 
-Above, we see an event definition used in one of Ociswap's Basic pools. It derives at the very least `radix_engine_common::ScryptoSbor`, which is needed to decode it from binary Scrypto SBOR. Copy this over to your project.
+Above, we see an event definition used in one of Ociswap's Basic pools. It derives at the very least `radix_common::ScryptoSbor`, which is needed to decode it from binary Scrypto SBOR. Copy this over to your project.
 
 ### Step 2: Define a global state.
 
@@ -279,6 +282,49 @@ TransactionStreamProcessor::new(stream, handler_registry, state)
     .await
     .unwrap();
 ```
+
+
+## Native events
+
+Radix also has a bunch of events that are built into the platform. For example, events are emitted on:
+- Entity metadata changes
+- Resource deposits/withdrawals
+- Resource minting/burning
+- Native pool deposits/withdrawals
+- And more...
+
+These events are also supported by this framework. In the context of this framework, they are referred to as "native" events.
+
+Each native event type can only have *one* handler, unlike custom events. The reason behind this is that it is less straightforward to identify these events, as their emitters can vary a lot, while custom components can only be emitted by the components we create. We hope Radix may add a more direct way to identify events, so that we'll be able to eliminate this inequality.
+
+Add logic to the handler to handle different emitter types, or addresses. This information is provided to the handler.
+
+Handling these native events follows almost the same process as custom events, with a few differences:
+- You don't have to copy over any event definitions, they are re-exported in this crate.
+- You can specify the handler for an event type using the `HandlerRegistry::set_native_handler` method.
+
+```rust
+handler_registry.set_native_handler(
+    NativeEventType::Metadata(MetadataEventType::SetMetadataEvent),
+    handler,
+);
+```
+
+A nested enum is used here to indicate the event type we wish to set the handler for. There are a few logical modules in which events are grouped:
+- Metadata
+- ResourceManager
+- Vaults
+- Pools
+- etc.
+
+Each module has a ...EventType enum. These can all be imported from the `native_events` module, where the events are also re-exported.
+To view the events, you can find them in [radixdlt-scrypto](https://github.com/radixdlt/radixdlt-scrypto);
+- [metadata and role assignment](https://github.com/radixdlt/radixdlt-scrypto/tree/main/radix-engine/src/object_modules)
+- [other](https://github.com/radixdlt/radixdlt-scrypto/tree/main/radix-engine/src/blueprints)
+
+However it might be easier to clone this repo or add it as a dependency in your project and then go to definition using your IDE.
+
+Find an example in `examples/native_events.rs`
 
 # More info
 

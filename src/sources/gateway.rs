@@ -23,11 +23,15 @@ use tokio::{
 impl From<GatewayEvent> for Event {
     fn from(event: GatewayEvent) -> Self {
         let emitter = match event.emitter {
-            EventEmitterIdentifier::Method { entity, .. } => {
-                EventEmitter::Method {
-                    entity_address: entity.entity_address,
-                }
-            }
+            EventEmitterIdentifier::Method {
+                entity,
+                object_module_id,
+            } => EventEmitter::Method {
+                entity_address: entity.entity_address,
+                entity_type: entity.entity_type,
+                is_global: entity.is_global,
+                object_module_id,
+            },
             EventEmitterIdentifier::Function {
                 package_address,
                 blueprint_name,

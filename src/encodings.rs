@@ -1,13 +1,13 @@
 //! Some utility functions for encoding and decoding data
 //! using the Scrypto SBOR encoding.
 
-use radix_engine_common::{
+use radix_common::{
     address::{AddressBech32EncodeError, AddressBech32Encoder},
     data::scrypto::{scrypto_decode, ScryptoDecode},
     network::NetworkDefinition,
 };
 use radix_engine_toolkit::functions::scrypto_sbor::{
-    encode_string_representation, ScryptoSborError, StringRepresentation,
+    encode_string_representation, StringRepresentation,
 };
 
 /// Decode a [`serde_json::Value`] containing programmatic json
@@ -15,10 +15,10 @@ use radix_engine_toolkit::functions::scrypto_sbor::{
 #[allow(clippy::redundant_closure)]
 pub fn decode_programmatic_json<T: ScryptoDecode>(
     data: &serde_json::Value,
-) -> Result<T, ScryptoSborError> {
+) -> anyhow::Result<T> {
     let bytes = programmatic_json_to_bytes(data)?;
     scrypto_decode::<T>(&bytes)
-        .map_err(|error| ScryptoSborError::DecodeError(error))
+        .map_err(|err| anyhow::anyhow!("Could not decode: {:#?}", err))
 }
 
 /// Some representations of transactions only come with programmatic
@@ -26,11 +26,12 @@ pub fn decode_programmatic_json<T: ScryptoDecode>(
 /// programmatic json into a binary SBOR representation.
 pub fn programmatic_json_to_bytes(
     data: &serde_json::Value,
-) -> Result<Vec<u8>, ScryptoSborError> {
+) -> anyhow::Result<Vec<u8>> {
     let string_data = data.to_string();
     let string_representation = encode_string_representation(
         StringRepresentation::ProgrammaticJson(string_data),
-    )?;
+    )
+    .map_err(|err| anyhow::anyhow!("Could not encode: {:#?}", err))?;
     Ok(string_representation.to_vec())
 }
 
