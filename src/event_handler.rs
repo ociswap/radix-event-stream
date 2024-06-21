@@ -183,7 +183,7 @@ impl HandlerRegistry {
     /// This function panics if the type parameters used to call it
     /// don't match the ones used to add the handler to the registry.
     #[allow(clippy::borrowed_box)]
-    pub fn get_handler<STATE: State, TRANSACTION_CONTEXT: 'static>(
+    pub fn handler<STATE: State, TRANSACTION_CONTEXT: 'static>(
         &self,
         emitter: &str,
         name: &str,
@@ -223,7 +223,7 @@ impl HandlerRegistry {
     }
 
     #[allow(clippy::borrowed_box)]
-    pub fn get_native_handler<STATE: State, TRANSACTION_CONTEXT: 'static>(
+    pub fn native_handler<STATE: State, TRANSACTION_CONTEXT: 'static>(
         &self,
         event_type: NativeEventType,
     ) -> Option<&Box<dyn EventHandler<STATE, TRANSACTION_CONTEXT>>> {

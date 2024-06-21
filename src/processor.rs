@@ -341,7 +341,7 @@ impl<'a> EventProcessor<'a> {
             }
             let event_handler = {
                 handler_registry
-                    .get_handler::<STATE, TRANSACTION_CONTEXT>(
+                    .handler::<STATE, TRANSACTION_CONTEXT>(
                         event.emitter.address(),
                         &event.name,
                     )
@@ -354,7 +354,7 @@ impl<'a> EventProcessor<'a> {
                                 panic!("Got a function call while expecting a native event.")
                             }
                         };
-                        handler_registry.get_native_handler(
+                        handler_registry.native_handler(
                             NativeEventType::resolve(&event.name, entity_type.clone()).unwrap(),
                         )
                     })
