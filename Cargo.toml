@@ -1,6 +1,6 @@
 [package]
 name = "radix-event-stream"
-version = "1.1.0"
+version = "1.1.1"
 edition = "2021"
 license-file = "LICENSE"
 repository = "https://github.com/ociswap/radix-event-stream"
