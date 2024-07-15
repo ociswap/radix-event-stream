@@ -17,7 +17,7 @@ radix-engine-interface = { version = "1.2.0" }
 radix-engine = { version = "1.2.0" }
 radix-client = { git = "https://github.com/ociswap/radix-client", features = [
     "gateway",
-], optional = true }
+], optional = true, tag = "v1.0.1" }
 
 handler_macro = { path = "./handler_macro" }
 
