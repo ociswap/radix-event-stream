@@ -1,15 +1,11 @@
 [workspace]
-members = [
-    "crates/radix-event-stream",
-    "crates/examples",
-    "crates/handler-macro",
-]
+members = ["radix-event-stream", "examples", "handler-macro"]
 resolver = "2"
-license-file = "LICENSE"
 package.version = "1.1.0"
 package.edition = "2021"
 package.license-file = "LICENSE"
 package.repository = "https://github.com/ociswap/radix-event-stream"
+package.rust-version = "1.76"
 
 
 [workspace.dependencies]
