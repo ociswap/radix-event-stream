@@ -1,6 +1,6 @@
 [package]
-name = "handler_macro"
-version = "0.1.0"
+name = "handler-macro"
+version = "1.1.1"
 edition = "2021"
 
 [lib]

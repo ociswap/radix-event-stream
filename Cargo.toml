@@ -1,51 +1,16 @@
-[package]
-name = "radix-event-stream"
-version = "1.1.1"
-edition = "2021"
+[workspace]
+members = [
+    "crates/radix-event-stream",
+    "crates/examples",
+    "crates/handler-macro",
+]
+resolver = "2"
 license-file = "LICENSE"
-repository = "https://github.com/ociswap/radix-event-stream"
 
 
-[dependencies]
-# We link to a temporary RET fix here as there is currently a bug with decoding gateway events.
-# https://discord.com/channels/417762285172555786/765994894749597697/1225814514717560872
-# Should be removed once they release a new version.
-radix-engine-toolkit = { git = 'https://github.com/Krulknul/radix-engine-toolkit.git', branch = "temporary-fix-1.0.5" }
+[workspace.dependencies]
 radix-common = { version = "1.2.0", features = ["serde"] }
 sbor = { version = "1.2.0", features = ["serde"] }
 radix-engine-interface = { version = "1.2.0" }
 radix-engine = { version = "1.2.0" }
-radix-client = { git = "https://github.com/ociswap/radix-client", features = [
-    "gateway",
-], optional = true, tag = "v1.0.1" }
-
-handler_macro = { path = "./handler_macro" }
-
-serde_json = "1.0.114"
-serde = "1.0.197"
-log = "0.4.21"
-serde_yaml = { version = "0.9.33", optional = true }
-chrono = "0.4.35"
-colored = "2.1.0"
-dyn-clone = "1.0.17"
-anyhow = "1.0.81"
-async-trait = "0.1.79"
-tokio = { version = "1.37.0", features = ["full"] }
-sqlx = { version = "0.7.4", features = [
-    "postgres",
-    "time",
-    "runtime-tokio",
-    "chrono",
-], optional = true }
-
-[features]
-default = ["gateway", "file", "database", "channel"]
-database = ["sqlx"]
-gateway = ["radix-client"]
-file = ["serde_yaml"]
-channel = []
-
-
-[dev-dependencies]
-sqlx = { version = "0.7.4", features = ["sqlite"] }
-env_logger = "0.11.3"
+radix-engine-toolkig = { git = 'https://github.com/Krulknul/radix-engine-toolkit.git', branch = "temporary-fix-1.0.5" }
