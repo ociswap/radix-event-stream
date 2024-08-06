@@ -1,12 +1,15 @@
+use chrono::{DateTime, Utc};
 use log::info;
 use radix_common::math::Decimal;
+use radix_common::prelude::{
+    scrypto_encode, AddressBech32Decoder, NetworkDefinition,
+};
 use radix_common::types::{ComponentAddress, ResourceAddress};
 use radix_common::ScryptoSbor;
 use radix_event_stream::event_handler::HandlerRegistry;
 use radix_event_stream::macros::event_handler;
+use radix_event_stream::models::{Event, EventEmitter, Transaction};
 use radix_event_stream::processor::TransactionProcessor;
-use radix_event_stream::sources::gateway::GatewayTransactionStream;
-use radix_event_stream::stream::TransactionStream;
 use std::env;
 
 #[derive(Debug, Clone)]
@@ -51,21 +54,44 @@ async fn main() {
         handle_instantiate_event,
     );
 
-    // Create a new transaction stream, which the processor will use
-    // as a source of transactions.
-    let mut gateway_stream = GatewayTransactionStream::new()
-        .from_state_version(71656472)
-        .gateway_url("https://mainnet.radixdlt.com".to_string())
-        .buffer_capacity(1000)
-        .limit_per_page(100);
-
     let mut transactions = Vec::new();
-    let mut next = gateway_stream.start().await.unwrap();
-    // first get 10 transactions from the gateway stream
-    for _ in 0..10 {
-        let transaction = next.recv().await.unwrap();
-        transactions.push(transaction);
-    }
+
+    let event = InstantiateEvent {
+        x_address: ResourceAddress::try_from_bech32(
+            &AddressBech32Decoder::new(&NetworkDefinition::mainnet()),
+            "resource_rdx1t52pvtk5wfhltchwh3rkzls2x0r98fw9cjhpyrf3vsykhkuwrf7jg8",
+        ).unwrap(),
+        y_address: ResourceAddress::try_from_bech32(
+            &AddressBech32Decoder::new(&NetworkDefinition::mainnet()),
+            "resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd",
+        ).unwrap(),
+        inpu_fee_rate: Decimal::one(),
+        liquidity_pool_address: ComponentAddress::try_from_bech32(
+                &AddressBech32Decoder::new(&NetworkDefinition::mainnet()),
+                "pool_rdx1ckyg8aujf09uh8qlz6asst75g5w6pl6vu8nl6qrhskawcndyk6585y",
+            )
+            .unwrap(),
+        pool_address: ComponentAddress::try_from_bech32(
+            &AddressBech32Decoder::new(&NetworkDefinition::mainnet()),
+            "component_rdx1cz89w3ecvh9jvdd892vycs44rr042lteg75zgdydq9csn5d87snvdw",
+        )
+        .unwrap(),
+    };
+
+    let encoded_event = scrypto_encode(&event).unwrap();
+
+    transactions.push(Transaction {
+        events: vec![Event {
+            name: "InstantiateEvent".to_string(),
+            binary_sbor_data: encoded_event,
+            emitter: EventEmitter::Function {
+                package_address: "package_rdx1p5l6dp3slnh9ycd7gk700czwlck9tujn0zpdnd0efw09n2zdnn0lzx".to_string(),
+                blueprint_name: "BasicPool".to_string(),
+            },
+        }],
+        confirmed_at: Some(DateTime::<Utc>::default()),
+        ..Transaction::default()
+    });
 
     let mut processor =
         TransactionProcessor::new(handler_registry, State { number: 1 });
