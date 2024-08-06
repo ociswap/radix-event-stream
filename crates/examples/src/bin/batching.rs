@@ -61,8 +61,8 @@ async fn main() {
 
     let mut transactions = Vec::new();
     let mut next = gateway_stream.start().await.unwrap();
-    // first get 1000 transactions from the gateway stream
-    for _ in 0..1000 {
+    // first get 10 transactions from the gateway stream
+    for _ in 0..10 {
         let transaction = next.recv().await.unwrap();
         transactions.push(transaction);
     }
@@ -70,13 +70,8 @@ async fn main() {
     let mut processor =
         TransactionProcessor::new(handler_registry, State { number: 1 });
 
-    // group the transactions into batches of 100
-    let transaction_batches = transactions.chunks(100);
-
-    for transaction_batch in transaction_batches {
-        processor
-            .process_transactions(transaction_batch)
-            .await
-            .unwrap();
-    }
+    // Process the transactions by passing in the transactions to the TransactionProcessor
+    // see also the process_transaction method to process only one transaction
+    processor.process_transactions(&transactions).await.unwrap();
+    // Do some checking here to see if the event handlers are correct.
 }
