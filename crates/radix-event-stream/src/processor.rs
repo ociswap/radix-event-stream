@@ -7,8 +7,7 @@ a default implementation of a [`TransactionHandler`], and a struct that processe
 
 use crate::{
     error::{
-        EventHandlerError, TransactionHandlerError,
-        TransactionStreamProcessorError,
+        EventHandlerError, TransactionHandlerError, TransactionProcessorError,
     },
     event_handler::{EventHandlerContext, HandlerRegistry, State},
     logger::{DefaultLogger, Logger},
@@ -154,13 +153,13 @@ where
     }
 
     /// Starts processing transactions from the [`TransactionStream`].
-    pub async fn run(&mut self) -> Result<(), TransactionStreamProcessorError> {
+    pub async fn run(&mut self) -> Result<(), TransactionProcessorError> {
         // Start the transaction stream and get a receiver.
         // This often involves starting a task that fetches transactions
         // from a remote source and sends them to the receiver.
         let mut receiver =
             self.transaction_stream.start().await.map_err(|error| {
-                TransactionStreamProcessorError::UnrecoverableError(error)
+                TransactionProcessorError::UnrecoverableError(error)
             })?;
         let logger = self.transaction_processor.logger.clone();
         self.periodic_logging_joinhandle = if let Some(logger) = logger {
@@ -331,6 +330,7 @@ impl<'a> EventProcessor<'a> {
     }
 }
 
+#[allow(non_camel_case_types)]
 pub struct TransactionProcessor<STATE: State> {
     pub logger: Option<Arc<RwLock<Box<dyn Logger>>>>,
     pub handler_registry: HandlerRegistry,
@@ -340,6 +340,7 @@ pub struct TransactionProcessor<STATE: State> {
     pub event_retry_delay: Duration,
 }
 
+#[allow(non_camel_case_types)]
 impl<STATE: State> TransactionProcessor<STATE> {
     pub fn new(handler_registry: HandlerRegistry, state: STATE) -> Self {
         Self {
@@ -398,7 +399,7 @@ impl<STATE: State> TransactionProcessor<STATE> {
     pub async fn process_transaction(
         &mut self,
         transaction: &Transaction,
-    ) -> Result<(), TransactionStreamProcessorError> {
+    ) -> Result<(), TransactionProcessorError> {
         // Find out if there are any events inside this transaction
         // that have a handler registered.
         let handler_exists = transaction
@@ -474,9 +475,9 @@ impl<STATE: State> TransactionProcessor<STATE> {
                     if let Some(logger) = &self.logger {
                         logger.write().await.unrecoverable_error(&e).await;
                     }
-                    return Err(
-                        TransactionStreamProcessorError::UnrecoverableError(e),
-                    );
+                    return Err(TransactionProcessorError::UnrecoverableError(
+                        e,
+                    ));
                 }
             }
         }
@@ -492,8 +493,8 @@ impl<STATE: State> TransactionProcessor<STATE> {
 
     pub async fn process_transactions(
         &mut self,
-        transactions: Vec<&Transaction>,
-    ) -> Result<(), TransactionStreamProcessorError> {
+        transactions: &[Transaction],
+    ) -> Result<(), TransactionProcessorError> {
         for transaction in transactions {
             self.process_transaction(&transaction).await?;
         }

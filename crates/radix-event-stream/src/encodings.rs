@@ -1,13 +1,13 @@
 //! Some utility functions for encoding and decoding data
 //! using the Scrypto SBOR encoding.
 
+use crate::encode_string_representation::{
+    encode_string_representation, StringRepresentation,
+};
 use radix_common::{
     address::{AddressBech32EncodeError, AddressBech32Encoder},
     data::scrypto::{scrypto_decode, ScryptoDecode},
     network::NetworkDefinition,
-};
-use radix_engine_toolkit::functions::scrypto_sbor::{
-    encode_string_representation, StringRepresentation,
 };
 
 /// Decode a [`serde_json::Value`] containing programmatic json

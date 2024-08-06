@@ -75,7 +75,7 @@ async fn main() {
 
     for transaction_batch in transaction_batches {
         processor
-            .process_transactions(transaction_batch.iter().collect::<Vec<_>>())
+            .process_transactions(transaction_batch)
             .await
             .unwrap();
     }

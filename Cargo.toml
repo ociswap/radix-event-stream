@@ -13,4 +13,5 @@ radix-common = { version = "1.2.0", features = ["serde"] }
 sbor = { version = "1.2.0", features = ["serde"] }
 radix-engine-interface = { version = "1.2.0" }
 radix-engine = { version = "1.2.0" }
-radix-engine-toolkig = { git = 'https://github.com/Krulknul/radix-engine-toolkit.git', branch = "temporary-fix-1.0.5" }
+# Temporary fix until new gateway is released
+sbor-json = { git = 'https://github.com/Krulknul/radix-engine-toolkit.git', branch = "temporary-fix-bottlenose" }

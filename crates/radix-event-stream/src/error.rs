@@ -53,7 +53,7 @@ impl From<EventHandlerError> for TransactionHandlerError {
 /// When the processor finishes successfully, it returns Ok(()),
 /// otherwise it returns the UnrecoverableError variant here.
 #[derive(Debug)]
-pub enum TransactionStreamProcessorError {
+pub enum TransactionProcessorError {
     /// The transaction stream processor encountered an unrecoverable
     /// error and the processor should stop processing.
     UnrecoverableError(anyhow::Error),
