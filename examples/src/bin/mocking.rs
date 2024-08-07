@@ -32,7 +32,7 @@ pub async fn handle_instantiate_event(
     event: InstantiateEvent,
 ) -> Result<(), EventHandlerError> {
     info!(
-        "Handling the {}th instantiate event: {:#?}",
+        "{} instantiate events handled: {:#?}",
         context.state.number, event
     );
     context.state.number += 1;
@@ -94,10 +94,12 @@ async fn main() {
     });
 
     let mut processor =
-        TransactionProcessor::new(handler_registry, State { number: 1 });
+        TransactionProcessor::new(handler_registry, State { number: 0 });
 
     // Process the transactions by passing in the transactions to the TransactionProcessor
     // see also the process_transaction method to process only one transaction
     processor.process_transactions(&transactions).await.unwrap();
+
     // Do some checking here to see if the event handlers are correct.
+    assert_eq!(processor.state.number, 1);
 }
