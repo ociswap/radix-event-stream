@@ -1,5 +1,5 @@
 [package]
-name = "handler-macro"
+name = "handler_macro"
 version.workspace = true
 edition.workspace = true
 license-file.workspace = true

@@ -1,5 +1,5 @@
 [package]
-name = "radix-event-stream"
+name = "radix_event_stream"
 version.workspace = true
 edition.workspace = true
 license-file.workspace = true

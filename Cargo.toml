@@ -1,5 +1,5 @@
 [workspace]
-members = ["radix-event-stream", "examples", "handler-macro"]
+members = ["radix_event_stream", "examples", "handler_macro"]
 resolver = "2"
 package.version = "1.2.0"
 package.edition = "2021"
