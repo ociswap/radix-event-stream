@@ -1,5 +1,5 @@
 /*!
-# Transaction Stream Processor - Ties everything together and does the heavy lifting
+# Transaction Stream Processor - Ties everything together
 
 This module holds the main struct that processes transactions from a [`TransactionStream`],
 a default implementation of a [`TransactionHandler`], and a struct that processes events in a [`TransactionHandler`].
@@ -22,10 +22,9 @@ use std::{sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 
 /// The main struct that processes transactions from a [`TransactionStream`].
-/// It processes transactions by calling a [`TransactionHandler`] for each transaction
-/// that has at least one event with an [`EventHandler`][crate::event_handler::EventHandler] registered.
+/// It processes transactions by having an instance of [`TransactionProcessor`], and passing transactions to it.
 /// It can be created using a builder pattern, where you can set the [`TransactionHandler`],
-/// retry intervals, and logger.
+/// retry intervals, and logger. It handles the lifecycle of an asynchronous periodic logging task.
 ///
 /// If you don't set a transaction handler explicitly, the processor will use a default handler
 /// that simply calls [`EventProcessor::process_events`] on the transaction, without any custom logic.
@@ -182,7 +181,6 @@ where
         // If the transmitting half of the channel is dropped,
         // the receiver will return None and we will exit the loop.
         // The processor will exit gracefully.
-
         if let Some(handle) = self.periodic_logging_joinhandle.take() {
             handle.abort();
         }
@@ -212,124 +210,15 @@ where
     }
 }
 
-/// The [`EventProcessor`]'s only purpose is to have a convenience method to process events in a transaction.
-/// The user calls [`EventProcessor::process_events`] when implementing a custom [`TransactionHandler`].
-/// It will iterate over the events in the transaction and call the appropriate event handlers.
-/// It handles retries for events that fail to process, and calls logging hooks.
-/// It is highly recommended to use this method when implementing a custom [`TransactionHandler`].
-pub struct EventProcessor<'a> {
-    event_retry_interval: Duration,
-    transaction: &'a Transaction,
-    logger: &'a Option<Arc<RwLock<Box<dyn Logger>>>>,
-}
-
-#[allow(non_camel_case_types)]
-impl<'a> EventProcessor<'a> {
-    pub async fn process_events<STATE: State, TRANSACTION_CONTEXT: 'static>(
-        &self,
-        state: &mut STATE,
-        handler_registry: &mut HandlerRegistry,
-        transaction_context: &mut TRANSACTION_CONTEXT,
-    ) -> Result<(), EventHandlerError> {
-        for (event_index, event) in self.transaction.events.iter().enumerate() {
-            let handler_exists = handler_registry.handler_exists(event);
-            if !handler_exists {
-                continue;
-            }
-            if let Some(logger) = self.logger {
-                logger
-                    .write()
-                    .await
-                    .receive_event(
-                        self.transaction,
-                        event,
-                        handler_exists,
-                        false,
-                    )
-                    .await;
-            }
-            let event_handler = {
-                handler_registry
-                    .handler::<STATE, TRANSACTION_CONTEXT>(
-                        event.emitter.address(),
-                        &event.name,
-                    )
-                    .or_else(|| {
-                        let entity_type = match &event.emitter {
-                            EventEmitter::Method { entity_type, .. } => {
-                                entity_type
-                            }
-                            EventEmitter::Function { .. } => {
-                                panic!("Got a function call while expecting a native event.")
-                            }
-                        };
-                        handler_registry.native_handler(
-                            NativeEventType::resolve(&event.name, entity_type.clone()).unwrap(),
-                        )
-                    })
-                    .unwrap()
-            };
-            let event_handler = event_handler.clone();
-            while let Err(err) = event_handler
-                .handle(
-                    EventHandlerContext {
-                        state,
-                        transaction: self.transaction,
-                        event,
-                        handler_registry,
-                        transaction_context,
-                        event_index: event_index as u16,
-                    },
-                    &event.binary_sbor_data,
-                )
-                .await
-            {
-                match err {
-                    EventHandlerError::EventRetryError(e) => {
-                        if let Some(logger) = self.logger {
-                            logger
-                                .write()
-                                .await
-                                .event_retry_error(
-                                    self.transaction,
-                                    event,
-                                    &e,
-                                    self.event_retry_interval,
-                                )
-                                .await;
-                        }
-                        tokio::time::sleep(self.event_retry_interval).await;
-                        if let Some(logger) = self.logger {
-                            logger
-                                .write()
-                                .await
-                                .receive_event(
-                                    self.transaction,
-                                    event,
-                                    handler_exists,
-                                    true,
-                                )
-                                .await;
-                        }
-                        continue;
-                    }
-                    _ => {
-                        return Err(err);
-                    }
-                }
-            }
-            if let Some(logger) = self.logger {
-                logger
-                    .write()
-                    .await
-                    .finish_event(self.transaction, event, handler_exists)
-                    .await;
-            }
-        }
-        Ok(())
-    }
-}
-
+/// [`TransactionProcessor`] encapsulates the logic for processing transactions, which includes calling
+/// the [`TransactionHandler`] for each transaction, calling logging hooks, and handling retries.
+/// It can be created using a builder pattern, where you can set the [`TransactionHandler`],
+/// retry intervals, and logger. As opposed to the [`TransactionStreamProcessor`], it does not
+/// have a transaction stream, and you have to pass transactions to it manually.
+/// It is useful when you want to process transactions from a source other than a [`TransactionStream`],
+/// like when testing using mocked transactions. [`TransactionStreamProcessor`] uses this struct internally.
+///
+/// All the logging hooks work when using this struct, except for the periodic report, which is left out.
 #[allow(non_camel_case_types)]
 pub struct TransactionProcessor<STATE: State> {
     pub logger: Option<Arc<RwLock<Box<dyn Logger>>>>,
@@ -497,6 +386,124 @@ impl<STATE: State> TransactionProcessor<STATE> {
     ) -> Result<(), TransactionProcessorError> {
         for transaction in transactions {
             self.process_transaction(&transaction).await?;
+        }
+        Ok(())
+    }
+}
+
+/// The [`EventProcessor`]'s only purpose is to have a convenience method to process events in a transaction.
+/// The user calls [`EventProcessor::process_events`] when implementing a custom [`TransactionHandler`].
+/// It will iterate over the events in the transaction and call the appropriate event handlers.
+/// It handles retries for events that fail to process, and calls logging hooks.
+/// It is highly recommended to use this method when implementing a custom [`TransactionHandler`].
+pub struct EventProcessor<'a> {
+    event_retry_interval: Duration,
+    transaction: &'a Transaction,
+    logger: &'a Option<Arc<RwLock<Box<dyn Logger>>>>,
+}
+
+#[allow(non_camel_case_types)]
+impl<'a> EventProcessor<'a> {
+    pub async fn process_events<STATE: State, TRANSACTION_CONTEXT: 'static>(
+        &self,
+        state: &mut STATE,
+        handler_registry: &mut HandlerRegistry,
+        transaction_context: &mut TRANSACTION_CONTEXT,
+    ) -> Result<(), EventHandlerError> {
+        for (event_index, event) in self.transaction.events.iter().enumerate() {
+            let handler_exists = handler_registry.handler_exists(event);
+            if !handler_exists {
+                continue;
+            }
+            if let Some(logger) = self.logger {
+                logger
+                    .write()
+                    .await
+                    .receive_event(
+                        self.transaction,
+                        event,
+                        handler_exists,
+                        false,
+                    )
+                    .await;
+            }
+            let event_handler = {
+                handler_registry
+                    .handler::<STATE, TRANSACTION_CONTEXT>(
+                        event.emitter.address(),
+                        &event.name,
+                    )
+                    .or_else(|| {
+                        let entity_type = match &event.emitter {
+                            EventEmitter::Method { entity_type, .. } => {
+                                entity_type
+                            }
+                            EventEmitter::Function { .. } => {
+                                panic!("Got a function call while expecting a native event.")
+                            }
+                        };
+                        handler_registry.native_handler(
+                            NativeEventType::resolve(&event.name, entity_type.clone()).unwrap(),
+                        )
+                    })
+                    .unwrap()
+            };
+            let event_handler = event_handler.clone();
+            while let Err(err) = event_handler
+                .handle(
+                    EventHandlerContext {
+                        state,
+                        transaction: self.transaction,
+                        event,
+                        handler_registry,
+                        transaction_context,
+                        event_index: event_index as u16,
+                    },
+                    &event.binary_sbor_data,
+                )
+                .await
+            {
+                match err {
+                    EventHandlerError::EventRetryError(e) => {
+                        if let Some(logger) = self.logger {
+                            logger
+                                .write()
+                                .await
+                                .event_retry_error(
+                                    self.transaction,
+                                    event,
+                                    &e,
+                                    self.event_retry_interval,
+                                )
+                                .await;
+                        }
+                        tokio::time::sleep(self.event_retry_interval).await;
+                        if let Some(logger) = self.logger {
+                            logger
+                                .write()
+                                .await
+                                .receive_event(
+                                    self.transaction,
+                                    event,
+                                    handler_exists,
+                                    true,
+                                )
+                                .await;
+                        }
+                        continue;
+                    }
+                    _ => {
+                        return Err(err);
+                    }
+                }
+            }
+            if let Some(logger) = self.logger {
+                logger
+                    .write()
+                    .await
+                    .finish_event(self.transaction, event, handler_exists)
+                    .await;
+            }
         }
         Ok(())
     }

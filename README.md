@@ -266,7 +266,7 @@ The `TransactionHandlerContext` holds a struct called `EventProcessor`. A method
 
 ### Step 7: Run the stream processor.
 
-The `TransactionStreamProcessor` is what ties everything together. It is responsible for getting new transactions from the stream we selected, and calling the transaction handler which in turn calls the event handlers.
+The `TransactionStreamProcessor` is what ties everything together. It is responsible for getting new transactions from the stream we selected, and making sure they are handled by handlers when necessary.
 
 We can use a builder pattern to construct one and run it. It takes a few required parameters directly in the `new()` method, but you can set some optional behavior using the builder methods.
 
@@ -324,8 +324,11 @@ To view the events, you can find them in [radixdlt-scrypto](https://github.com/r
 
 However it might be easier to clone this repo or add it as a dependency in your project and then go to definition using your IDE.
 
-Find an example in `examples/native_events.rs`
+Find an example in `examples/src/bin/native_events.rs`
+
+### Testing
+If you want to write automated tests for the logic of your handlers, I would recommend using the `TransactionProcessor`, which encapsulates the transaction processing logic, without being tied to `TransactionStream`s. It allows you to manually pass in mocked transactions, wait for them to be handled, and then control is given back so you can inspect the state changes caused by handling this transaction. See `examples/src/bin/mocking.rs` for an example.
 
 # More info
 
-For more examples, please see the `/examples` directory, or ask us on telegram/discord if you have any specific questions! We'd be happy to help.
+For more examples, please see the `/examples` crate, or ask us on telegram/discord if you have any specific questions! We'd be happy to help.
