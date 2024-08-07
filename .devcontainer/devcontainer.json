@@ -1,5 +1,5 @@
 {
-    "name": "Rust 1.76",
+    "name": "Rust 1.80",
     "dockerFile": "Dockerfile",
     "customizations": {
         "vscode": {

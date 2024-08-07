@@ -1,3 +1,3 @@
-FROM rust:1.76
+FROM rust:1.80
 
 RUN rustup component add rustfmt
