@@ -16,7 +16,7 @@ radix-client = { git = "https://github.com/ociswap/radix-client", features = [
     "gateway",
 ], optional = true, tag = "v1.0.1" }
 
-handler-macro = { path = "../handler-macro" }
+handler_macro = { path = "../handler-macro" }
 
 serde_json = "1.0.114"
 serde = "1.0.197"
