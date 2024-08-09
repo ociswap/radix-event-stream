@@ -1,11 +1,56 @@
+[package]
+name = "radix_event_stream"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+radix-common = { workspace = true }
+sbor = { workspace = true }
+radix-engine-interface = { workspace = true }
+radix-engine = { workspace = true }
+sbor-json = { workspace = true }
+radix-client = { git = "https://github.com/ociswap/radix-client", features = [
+    "gateway",
+], optional = true, tag = "v1.0.1" }
+
+handler_macro = { path = "./handler_macro" }
+
+serde_json = "1.0.114"
+serde = "1.0.197"
+log = "0.4.21"
+serde_yaml = { version = "0.9.33", optional = true }
+chrono = "0.4.35"
+colored = "2.1.0"
+dyn-clone = "1.0.17"
+anyhow = "1.0.81"
+async-trait = "0.1.79"
+tokio = { version = "1.37.0", features = ["full"] }
+sqlx = { version = "0.7.4", features = [
+    "postgres",
+    "time",
+    "runtime-tokio",
+    "chrono",
+], optional = true }
+serde_with = "3.9.0"
+
+[features]
+default = ["gateway", "file", "database", "channel"]
+database = ["sqlx"]
+gateway = ["radix-client"]
+file = ["serde_yaml"]
+channel = []
+
 [workspace]
-members = ["radix-event-stream", "examples", "handler-macro"]
+members = ["examples", "handler_macro"]
 resolver = "2"
 package.version = "1.2.0"
 package.edition = "2021"
 package.license-file = "LICENSE"
 package.repository = "https://github.com/ociswap/radix-event-stream"
-package.rust-version = "1.80"
+package.rust-version = "1.76"
 
 
 [workspace.dependencies]

@@ -10,7 +10,7 @@ rust-version.workspace = true
 radix-common = { workspace = true }
 sbor = { workspace = true }
 radix-engine = { workspace = true }
-radix_event_stream = { path = "../radix-event-stream" }
+radix_event_stream = { path = ".." }
 sqlx = { version = "0.7.4", features = ["sqlite"] }
 env_logger = "0.11.3"
 log = "0.4.21"
