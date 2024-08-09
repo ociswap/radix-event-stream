@@ -1,12 +1,14 @@
 [package]
 name = "handler_macro"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 
 [lib]
 proc-macro = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 syn = { version = "1.0", features = ["full"] }

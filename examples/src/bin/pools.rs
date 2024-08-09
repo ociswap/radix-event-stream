@@ -1,6 +1,5 @@
-pub mod basicv0;
-use crate::basicv0::definitions::{State, TransactionContext};
-use crate::basicv0::events;
+use examples::pools::basicv0::definitions::{State, TransactionContext};
+use examples::pools::basicv0::events;
 use log::error;
 use radix_common::network::NetworkDefinition;
 use radix_event_stream::macros::transaction_handler;

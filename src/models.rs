@@ -53,7 +53,7 @@ impl EventEmitter {
 /// transaction stream. To implement a new transaction
 /// stream type, you would typically implement [`Into<Transaction>`]
 /// for the native transaction type of the transaction stream.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Transaction {
     pub intent_hash: String,
     pub state_version: u64,

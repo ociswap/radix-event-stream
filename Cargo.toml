@@ -1,20 +1,17 @@
 [package]
-name = "radix-event-stream"
-version = "1.1.1"
-edition = "2021"
-license-file = "LICENSE"
-repository = "https://github.com/ociswap/radix-event-stream"
-
+name = "radix_event_stream"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 
 [dependencies]
-# We link to a temporary RET fix here as there is currently a bug with decoding gateway events.
-# https://discord.com/channels/417762285172555786/765994894749597697/1225814514717560872
-# Should be removed once they release a new version.
-radix-engine-toolkit = { git = 'https://github.com/Krulknul/radix-engine-toolkit.git', branch = "temporary-fix-1.0.5" }
-radix-common = { version = "1.2.0", features = ["serde"] }
-sbor = { version = "1.2.0", features = ["serde"] }
-radix-engine-interface = { version = "1.2.0" }
-radix-engine = { version = "1.2.0" }
+radix-common = { workspace = true }
+sbor = { workspace = true }
+radix-engine-interface = { workspace = true }
+radix-engine = { workspace = true }
+sbor-json = { workspace = true }
 radix-client = { git = "https://github.com/ociswap/radix-client", features = [
     "gateway",
 ], optional = true, tag = "v1.0.1" }
@@ -37,6 +34,7 @@ sqlx = { version = "0.7.4", features = [
     "runtime-tokio",
     "chrono",
 ], optional = true }
+serde_with = "3.9.0"
 
 [features]
 default = ["gateway", "file", "database", "channel"]
@@ -45,7 +43,20 @@ gateway = ["radix-client"]
 file = ["serde_yaml"]
 channel = []
 
+[workspace]
+members = ["examples", "handler_macro"]
+resolver = "2"
+package.version = "1.2.0"
+package.edition = "2021"
+package.license-file = "LICENSE"
+package.repository = "https://github.com/ociswap/radix-event-stream"
+package.rust-version = "1.76"
 
-[dev-dependencies]
-sqlx = { version = "0.7.4", features = ["sqlite"] }
-env_logger = "0.11.3"
+
+[workspace.dependencies]
+radix-common = { version = "1.2.0", features = ["serde"] }
+sbor = { version = "1.2.0", features = ["serde"] }
+radix-engine-interface = { version = "1.2.0" }
+radix-engine = { version = "1.2.0" }
+# Temporary fix until new gateway is released
+sbor-json = { git = 'https://github.com/Krulknul/radix-engine-toolkit.git', branch = "temporary-fix-bottlenose" }

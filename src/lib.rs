@@ -1,3 +1,4 @@
+pub mod encode_string_representation;
 pub mod encodings;
 pub mod error;
 pub mod event_handler;
