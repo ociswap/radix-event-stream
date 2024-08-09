@@ -332,3 +332,10 @@ If you want to write automated tests for the logic of your handlers, I would rec
 # More info
 
 For more examples, please see the `/examples` crate, or ask us on telegram/discord if you have any specific questions! We'd be happy to help.
+Command to run an example binary (one of the files in `/examples/src/bin`):
+
+```
+cargo run -p examples --bin minimal
+```
+
+or any other binary name
