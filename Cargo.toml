@@ -46,7 +46,7 @@ channel = []
 [workspace]
 members = ["examples", "handler_macro"]
 resolver = "2"
-package.version = "1.2.0"
+package.version = "1.2.1"
 package.edition = "2021"
 package.license-file = "LICENSE"
 package.repository = "https://github.com/ociswap/radix-event-stream"
@@ -58,5 +58,5 @@ radix-common = { version = "1.2.0", features = ["serde"] }
 sbor = { version = "1.2.0", features = ["serde"] }
 radix-engine-interface = { version = "1.2.0" }
 radix-engine = { version = "1.2.0" }
-# Temporary fix until new gateway is released
-sbor-json = { git = 'https://github.com/Krulknul/radix-engine-toolkit.git', branch = "temporary-fix-bottlenose" }
+# Tweak to bottlenose toolkit to support string and number variant_id to work with old and new Gateway
+sbor-json = { git = 'https://github.com/radixdlt/radix-engine-toolkit.git', rev = "0603463262cd3109bc664cca2c9accf0583098a1 }
