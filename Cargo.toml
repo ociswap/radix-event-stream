@@ -59,4 +59,4 @@ sbor = { version = "1.2.0", features = ["serde"] }
 radix-engine-interface = { version = "1.2.0" }
 radix-engine = { version = "1.2.0" }
 # Tweak to bottlenose toolkit to support string and number variant_id to work with old and new Gateway
-sbor-json = { git = 'https://github.com/radixdlt/radix-engine-toolkit.git', rev = "0603463262cd3109bc664cca2c9accf0583098a1 }
+sbor-json = { git = 'https://github.com/radixdlt/radix-engine-toolkit.git', rev = "0603463262cd3109bc664cca2c9accf0583098a1" }
