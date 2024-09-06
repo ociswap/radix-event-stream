@@ -46,7 +46,7 @@ channel = []
 [workspace]
 members = ["examples", "handler_macro"]
 resolver = "2"
-package.version = "1.2.0"
+package.version = "1.2.1"
 package.edition = "2021"
 package.license-file = "LICENSE"
 package.repository = "https://github.com/ociswap/radix-event-stream"
