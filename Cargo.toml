@@ -54,9 +54,8 @@ package.rust-version = "1.76"
 
 
 [workspace.dependencies]
-radix-common = { version = "1.2.0", features = ["serde"] }
 sbor = { version = "1.2.0", features = ["serde"] }
-radix-engine-interface = { version = "1.2.0" }
+radix-common = { version = "1.2.0", features = ["serde"] }
 radix-engine = { version = "1.2.0" }
-# Tweak to bottlenose toolkit to support string and number variant_id to work with old and new Gateway
-sbor-json = { git = 'https://github.com/radixdlt/radix-engine-toolkit.git', rev = "0603463262cd3109bc664cca2c9accf0583098a1" }
+radix-engine-interface = { version = "1.2.0" }
+sbor-json = { git = 'https://github.com/radixdlt/radix-engine-toolkit.git', rev = "7de47f829d08ad8c3a69ac69dad44ddd94ae22a8" }
