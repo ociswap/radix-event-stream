@@ -129,16 +129,17 @@ impl DatabaseFetcher {
         let query = sqlx::query_as::<_, TransactionRecord>(
             r#"
                 SELECT
-                    state_version,
+                    lt.state_version,
                     round_timestamp,
                     receipt_event_emitters,
                     receipt_event_sbors,
                     receipt_event_names,
                     intent_hash
                 FROM
-                    ledger_transactions
+                    ledger_transactions lt
+                    join ledger_transaction_events le on le.state_version = lt.state_version
                 WHERE
-                    discriminator = 'user' AND receipt_status != 'failed' AND state_version >= $2
+                    discriminator = 'user' AND receipt_status != 'failed' AND lt.state_version >= $2
                 ORDER BY
                     state_version ASC
                 LIMIT
