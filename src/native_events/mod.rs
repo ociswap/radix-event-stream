@@ -1,3 +1,4 @@
+use account::AccountEventType;
 use account_locker::AccountLockerEventType;
 use consensus_manager::ConsensusManagerEventType;
 use fungible_vault::FungibleVaultEventType;
@@ -13,6 +14,7 @@ use resource_manager::ResourceManagerEventType;
 use role_assignment::RoleAssignmentEventType;
 use validator::ValidatorEventType;
 
+pub mod account;
 pub mod account_locker;
 pub mod consensus_manager;
 pub mod fungible_vault;
@@ -36,6 +38,7 @@ pub enum NativeEventType {
     Validator(ValidatorEventType),
     ConsensusManager(ConsensusManagerEventType),
     RoleAssignment(RoleAssignmentEventType),
+    Account(AccountEventType),
 }
 
 impl NativeEventType {
@@ -89,6 +92,13 @@ impl NativeEventType {
                 EntityType::GlobalMultiResourcePool => Ok(NativeEventType::MultiResourcePool(
                     MultiResourcePoolEventType::WithdrawEvent,
                 )),
+                // I'm pretty sure it can be either of these account types
+                EntityType::GlobalAccount
+                | EntityType::GlobalVirtualEd25519Account
+                | EntityType::GlobalVirtualSecp256k1Account
+                => Ok(NativeEventType::Account(
+                    AccountEventType::WithdrawEvent,
+                )),
                 _ => Err(()),
             },
             "DepositEvent" => match entity_type {
@@ -106,6 +116,13 @@ impl NativeEventType {
                 )),
                 EntityType::GlobalMultiResourcePool => Ok(NativeEventType::MultiResourcePool(
                     MultiResourcePoolEventType::DepositEvent,
+                )),
+                // I'm pretty sure it can be either of these account types
+                EntityType::GlobalAccount
+                | EntityType::GlobalVirtualEd25519Account
+                | EntityType::GlobalVirtualSecp256k1Account
+                => Ok(NativeEventType::Account(
+                    AccountEventType::DepositEvent,
                 )),
                 _ => Err(()),
             },
@@ -199,6 +216,12 @@ impl NativeEventType {
             "LockOwnerRoleEvent" => Ok(NativeEventType::RoleAssignment(
                 RoleAssignmentEventType::LockOwnerRoleEvent,
             )),
+            "AddAuthorizedDepositorEvent" => Ok(NativeEventType::Account(AccountEventType::AddAuthorizedDepositorEvent)),
+            "RejectedDepositEvent" => Ok(NativeEventType::Account(AccountEventType::RejectedDepositEvent)),
+            "RemoveAuthorizedDepositorEvent" => Ok(NativeEventType::Account(AccountEventType::RemoveAuthorizedDepositorEvent)),
+            "RemoveResourcePreferenceEvent" => Ok(NativeEventType::Account(AccountEventType::RemoveResourcePreferenceEvent)),
+            "SetDefaultDepositRuleEvent" => Ok(NativeEventType::Account(AccountEventType::SetDefaultDepositRuleEvent)),
+            "SetResourcePreferenceEvent" => Ok(NativeEventType::Account(AccountEventType::SetResourcePreferenceEvent)),
             _ => Err(()),
         }
     }
