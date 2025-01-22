@@ -1,8 +1,8 @@
 use log::info;
-use radix_engine::object_modules::metadata::SetMetadataEvent;
+use radix_engine::blueprints::account::SetResourcePreferenceEvent;
 use radix_event_stream::event_handler::HandlerRegistry;
 use radix_event_stream::macros::event_handler;
-use radix_event_stream::native_events::metadata::MetadataEventType;
+use radix_event_stream::native_events::account::AccountEventType;
 use radix_event_stream::native_events::NativeEventType;
 use radix_event_stream::processor::TransactionStreamProcessor;
 use radix_event_stream::sources::database::DatabaseTransactionStream;
@@ -16,7 +16,7 @@ struct State {
 #[event_handler]
 pub async fn handler(
     context: EventHandlerContext<State>,
-    event: SetMetadataEvent,
+    event: SetResourcePreferenceEvent,
 ) -> Result<(), EventHandlerError> {
     info!(
         "Handling the {}th event: {:#?}",
@@ -37,7 +37,7 @@ async fn main() {
     // Add the event handler to the registry
     handler_registry.set_native_handler(
         // select the event type by using the enum
-        NativeEventType::Metadata(MetadataEventType::SetMetadataEvent),
+        NativeEventType::Account(AccountEventType::SetResourcePreferenceEvent),
         handler,
     );
 
