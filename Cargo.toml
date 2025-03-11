@@ -11,14 +11,11 @@ radix-common = { workspace = true }
 sbor = { workspace = true }
 radix-engine-interface = { workspace = true }
 radix-engine = { workspace = true }
-sbor-json = { workspace = true }
 scrypto = { workspace = true }
 radix-client = { git = "https://github.com/ociswap/radix-client", features = [
     "gateway",
 ], optional = true, tag = "v1.0.1" }
-
 handler_macro = { path = "./handler_macro" }
-
 serde_json = "1.0.114"
 serde = "1.0.197"
 log = "0.4.21"
@@ -36,6 +33,11 @@ sqlx = { version = "0.7.4", features = [
     "chrono",
 ], optional = true }
 serde_with = "3.9.0"
+
+# Add sbor-json with matching git versions with aliases
+sbor-json = { git = 'https://github.com/radixdlt/radix-engine-toolkit.git', tag = "v2.2.0" }
+sbor-git = { git = "https://github.com/radixdlt/radixdlt-scrypto", tag = "v1.3.0", package = "sbor", features = ["serde"] }
+radix-common-git = { git = "https://github.com/radixdlt/radixdlt-scrypto", tag = "v1.3.0", package = "radix-common", features = ["serde"] }
 
 [features]
 default = ["gateway", "file", "database", "channel"]
@@ -55,15 +57,14 @@ package.rust-version = "1.81"
 
 
 [workspace.dependencies]
-sbor = { git = "https://github.com/radixdlt/radixdlt-scrypto", tag = "v1.3.0", features = [
+sbor = { version = "1.3.0", features = [
     "serde",
 ] }
-radix-common = { git = "https://github.com/radixdlt/radixdlt-scrypto", tag = "v1.3.0", features = [
+radix-common = { version = "1.3.0", features = [
     "serde",
 ] }
-radix-engine = { git = "https://github.com/radixdlt/radixdlt-scrypto", tag = "v1.3.0" }
-radix-engine-interface = { git = "https://github.com/radixdlt/radixdlt-scrypto", tag = "v1.3.0" }
-scrypto = { git = "https://github.com/radixdlt/radixdlt-scrypto", tag = "v1.3.0", features = [
+radix-engine = { version = "1.3.0" }
+radix-engine-interface = { version = "1.3.0" }
+scrypto = { version = "1.3.0", features = [
     "serde",
 ] }
-sbor-json = { git = 'https://github.com/radixdlt/radix-engine-toolkit.git', tag = "v2.2.0" }
