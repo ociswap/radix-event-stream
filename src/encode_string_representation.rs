@@ -57,11 +57,8 @@ pub fn encode_string_representation(
             let scrypto_value = value.to_scrypto_value();
             
             // Use the git version's encoder directly
-            let bytes = radix_common_git::data::scrypto::scrypto_encode(&scrypto_value)
-                .map_err(|e| ScryptoSborError::EncodeError(convert_encode_error(e)))?;
-            
-            // Return the raw bytes
-            Ok(bytes)
+            radix_common_git::data::scrypto::scrypto_encode(&scrypto_value)
+                .map_err(|e| ScryptoSborError::EncodeError(convert_encode_error(e)))
         }
     }
 }
